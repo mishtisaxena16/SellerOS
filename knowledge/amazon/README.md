@@ -1,2 +1,0 @@
-# SellerOS
-Marketplace Seller Copilot

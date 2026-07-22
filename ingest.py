@@ -1,174 +1,273 @@
-import os
-import subprocess
+"""
+ingest.py
+
+SellerOS Knowledge Engine
+
+Responsibilities:
+    - Discover markdown documents
+    - Generate chunks
+    - Generate metadata
+    - Generate embeddings
+    - Store vectors in ChromaDB
+
+Pipeline:
+
+Markdown
+    ↓
+Chunking
+    ↓
+Metadata
+    ↓
+Embedding
+    ↓
+ChromaDB
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import List
+
 import chromadb
 
-from chunking import clean_text, semantic_chunk
-from embedding import get_embedding
+from chunking import ChunkingPipeline
+from metadata import MetadataGenerator
+from embedding import EmbeddingGenerator
 
-# =========================
-# Clone / Update Repository
-# =========================
-
-REPO_URL = "https://github.com/mishtisaxena16/SellerOS.git"
-LOCAL_PATH = "./SellerOS"
-
-if not os.path.exists(LOCAL_PATH):
-    print("Cloning repository...")
-    subprocess.run(
-        ["git", "clone", REPO_URL, LOCAL_PATH],
-        check=True
-    )
-else:
-    print("Updating repository...")
-    subprocess.run(
-        ["git", "-C", LOCAL_PATH, "pull"],
-        check=True
-    )
-
-# =========================
-# ChromaDB Setup
-# =========================
-
-client = chromadb.PersistentClient(
-    path="./chroma_db"
+from config import (
+    CHROMA_COLLECTION_NAME,
+    CHROMA_DB_PATH,
+    KNOWLEDGE_DIRECTORIES,
 )
-
-collection = client.get_or_create_collection(
-    name="selleros_docs"
-)
-
-# =========================
-# Repository Settings
-# =========================
-
-REPO_PATH =  os.path.join(
-    LOCAL_PATH,
-    "knowledge"
-)
-
-IGNORE_DIRS = {
-    ".git",
-    "_pycache_",
-    "node_modules",
-    ".venv",
-    "venv"
+IGNORED_FILES = {
+    "readme.md",
 }
 
-documents_loaded = 0
-chunks_loaded = 0
+# ==========================================================
+# INGESTION PIPELINE
+# ==========================================================
 
-# =========================
-# Read Repository Files
-# =========================
+class IngestionPipeline:
 
-for root, dirs, files in os.walk(REPO_PATH):
+    def __init__(self) -> None:
 
-    dirs[:] = [
-        d for d in dirs
-        if d not in IGNORE_DIRS
-    ]
+        self.chunker = ChunkingPipeline()
 
-    for file in files:
+        self.metadata_generator = (
+            MetadataGenerator()
+        )
 
-        # Index only markdown files
-        if not file.endswith(".md"):
-            continue
+        self.embedding_generator = (
+            EmbeddingGenerator()
+        )
 
-        filepath = os.path.join(root, file)
+        self.client = (
+            chromadb.PersistentClient(
+                path=str(CHROMA_DB_PATH)
+            )
+        )
+
+        self.collection = (
+            self.client.get_or_create_collection(
+                name=CHROMA_COLLECTION_NAME
+            )
+        )
+
+    # ======================================================
+    # INGEST SINGLE DOCUMENT
+    # ======================================================
+
+    def ingest_document(
+        self,
+        document_path: str | Path,
+    ) -> int:
+
+        document_path = Path(document_path)
+
+        print(
+            f"\nProcessing: {document_path}"
+        )
+
+        chunks = (
+            self.chunker.process_document(
+                document_path
+            )
+        )
+
+        inserted_count = 0
+
+        for chunk in chunks:
+
+            metadata = (
+                self.metadata_generator.generate(
+                    chunk,
+                    document_path,
+                )
+            )
+
+            embedded_chunk = (
+                self.embedding_generator
+                .generate_chunk_embedding(
+                    chunk,
+                    metadata,
+                )
+            )
+
+            self.collection.upsert(
+                ids=[
+                    embedded_chunk.chunk_id
+                ],
+                documents=[
+                    embedded_chunk.text
+                ],
+                embeddings=[
+                    embedded_chunk.embedding
+                ],
+                metadatas=[
+                    embedded_chunk.metadata
+                ],
+            )
+
+            inserted_count += 1
+
+        print(
+            f"Inserted {inserted_count} chunks"
+        )
+
+        return inserted_count
+
+    # ======================================================
+    # INGEST ALL KNOWLEDGE SOURCES
+    # ======================================================
+
+    def ingest_all(self) -> int:
+
+        total_chunks = 0
+
+        for (
+            platform,
+            directory
+        ) in KNOWLEDGE_DIRECTORIES.items():
+
+            if not directory.exists():
+
+                print(
+                    f"Skipping missing directory: "
+                    f"{directory}"
+                )
+
+                continue
+
+            print(
+                f"\n{'=' * 80}"
+            )
+            print(
+                f"Ingesting Platform: "
+                f"{platform.upper()}"
+            )
+            print(
+                f"{'=' * 80}"
+            )
+
+            markdown_files = list(
+                directory.rglob("*.md")
+            )
+
+            print(
+                f"Found "
+                f"{len(markdown_files)} "
+                f"documents"
+            )
+
+            for file_path in markdown_files:
+                if(
+                    file_path.name.lower()
+                    in IGNORED_FILES
+                ):
+                    continue
+                try:
+                    
+                    total_chunks += (
+                        self.ingest_document(
+                            file_path
+                        )
+                    )
+                except FileNotFoundError:
+                    print(f"Skipping missing file: {file_path}")
+                except Exception as e:
+                    print(
+                        f"Failed to ingest: "
+                        f"{file_path}" 
+                    )
+                    print(f"Reason: {e}")
+                    
+
+        return total_chunks
+
+    # ======================================================
+    # COLLECTION HELPERS
+    # ======================================================
+
+    def collection_count(self) -> int:
+
+        return self.collection.count()
+
+    def peek(self, limit: int = 1):
+
+        return self.collection.peek(
+            limit=limit
+        )
+
+    def reset_collection(self) -> None:
 
         try:
 
-            with open(
-                filepath,
-                "r",
-                encoding="utf-8",
-                errors="ignore"
-            ) as f:
-
-                content = f.read()
-
-            if not content.strip():
-                continue
-
-            content = clean_text(content)
-
-            chunks = semantic_chunk(content)
-
-            # -------------------------
-            # Generate Metadata
-            # -------------------------
-
-            # Folder name (amazon, gst, meesho, etc.)
-            platform = os.path.basename(
-                os.path.dirname(filepath)
+            self.client.delete_collection(
+                CHROMA_COLLECTION_NAME
             )
 
-            # Remove .md extension
-            module = os.path.splitext(file)[0]
+        except Exception:
+            pass
 
-            # Remove numeric prefix
-            # Example:
-            # 01_seller_onboarding -> seller_onboarding
-            if "_" in module:
-                module = module.split("_", 1)[1]
-
-            for idx, chunk in enumerate(chunks):
-
-                if not chunk.strip():
-                    continue
-
-                embedding = get_embedding(chunk)
-
-                if embedding is None:
-                    print(
-                        f"Embedding failed for {filepath}"
-                    )
-                    continue
-
-                chunk_id = f"{platform}{module}{idx}"
-
-                collection.upsert(
-                    ids=[chunk_id],
-                    documents=[chunk],
-                    embeddings=[embedding],
-                    metadatas=[{
-                        "platform": platform,
-                        "module": module,
-                        "source": file,
-                        "chunk": idx
-                    }]
-                )
-
-                chunks_loaded += 1
-
-            documents_loaded += 1
-
-            print(f"Indexed: {filepath}")
-
-        except Exception as e:
-
-            print(
-                f"Error processing {filepath}"
+        self.collection = (
+            self.client.get_or_create_collection(
+                name=CHROMA_COLLECTION_NAME
             )
+        )
 
-            print(e)
+        print(
+            "Collection reset completed."
+        )
 
-# =========================
-# Summary
-# =========================
 
-print("\n===== SUMMARY =====")
+# ==========================================================
+# MAIN
+# ==========================================================
 
-print(
-    f"Markdown Files Indexed: {documents_loaded}"
-)
+if __name__ == "__main__":
 
-print(
-    f"Total Chunks Indexed: {chunks_loaded}"
-)
+    pipeline = IngestionPipeline()
 
-print(
-    f"Total Chunks in ChromaDB: {collection.count()}"
-)
+    total_chunks = (
+        pipeline.ingest_all()
+    )
 
-print("Knowledge Base Indexed Successfully")
+    print("\n")
+    print("=" * 80)
+    print("INGESTION COMPLETE")
+    print("=" * 80)
+
+    print(
+        f"Total Chunks Added: "
+        f"{total_chunks}"
+    )
+
+    print(
+        f"Collection Count: "
+        f"{pipeline.collection_count()}"
+    )
+
+    sample = pipeline.peek(1)
+
+    print("\nSample Record:")
+    print(sample)
