@@ -1,0 +1,10 @@
+{
+  "description": "An AI-powered platform empowering marketplace sellers to optimize listings, manage inventory, analyze sales, and boost business performance seamlessly.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
