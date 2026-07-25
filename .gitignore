@@ -23,8 +23,7 @@ Thumbs.db
 *.log
 
 # ChromaDB / Vector DB
-data/
-chroma_db/
+chroma_data/
 
 # Temporary files
 structure.txt
@@ -32,4 +31,3 @@ structure.txt
 #frontend
 node_modules/
 dist/
-.env
