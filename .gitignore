@@ -1,5 +1,30 @@
+# Secrets
+.env
+*.env
+!.env.example
+
+# Python
 .venv/
+venv/
 __pycache__/
 *.pyc
-.env
+*.pyo
+*.egg-info/
+
+# Editors
 .vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# ChromaDB / Vector DB
+data/
+chroma_db/
+
+# Temporary files
+structure.txt

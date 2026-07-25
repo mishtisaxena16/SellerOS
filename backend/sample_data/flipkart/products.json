@@ -1,0 +1,18 @@
+[
+  {
+    "skuId": "FK-SKU-001",
+    "listingId": "FKL-100234",
+    "productTitle": "Women's Ethnic Anarkali Suit",
+    "sellingPrice": 1299.0,
+    "availableUnits": 8,
+    "listingStatus": "LIVE"
+  },
+  {
+    "skuId": "FK-SKU-002",
+    "listingId": "FKL-100235",
+    "productTitle": "Wireless Bluetooth Earbuds",
+    "sellingPrice": 999.0,
+    "availableUnits": 60,
+    "listingStatus": "LIVE"
+  }
+]

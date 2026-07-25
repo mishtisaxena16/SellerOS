@@ -1,0 +1,12 @@
+[
+  {
+    "sellerSku": "AMZ-SKU-001",
+    "fulfillableQuantity": 42,
+    "condition": "NewItem"
+  },
+  {
+    "sellerSku": "AMZ-SKU-002",
+    "fulfillableQuantity": 15,
+    "condition": "NewItem"
+  }
+]

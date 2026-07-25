@@ -1,0 +1,9 @@
+[
+  {
+    "shipment_id": "SHIP-AMZ-0001",
+    "order_id": "402-1234567-8901234",
+    "status": "delivered",
+    "carrier": "Amazon Logistics",
+    "tracking_number": "TBA123456789000"
+  }
+]

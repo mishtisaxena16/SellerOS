@@ -1,0 +1,20 @@
+[
+  {
+    "AmazonOrderId": "402-1234567-8901234",
+    "OrderStatus": "Shipped",
+    "OrderTotal": {"Amount": 799.0, "CurrencyCode": "INR"},
+    "PurchaseDate": "2026-07-18T10:32:00+00:00",
+    "items": [
+      {"sku": "AMZ-SKU-001", "quantity": 1, "unit_price": 799.0}
+    ]
+  },
+  {
+    "AmazonOrderId": "402-2345678-9012345",
+    "OrderStatus": "Unshipped",
+    "OrderTotal": {"Amount": 2998.0, "CurrencyCode": "INR"},
+    "PurchaseDate": "2026-07-22T15:04:00+00:00",
+    "items": [
+      {"sku": "AMZ-SKU-002", "quantity": 2, "unit_price": 1499.0}
+    ]
+  }
+]

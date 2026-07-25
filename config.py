@@ -72,13 +72,12 @@ MIN_CHUNK_TOKENS = 50
 # ============================================================================
 
 EMBEDDING_MODEL: Final[str] = (
-    "qwen3-embedding"
+    "nomic-embed-text"
 )
 OLLAMA_HOST = "http://localhost:11434"
 EMBEDDING_BATCH_SIZE: Final[int] = 32
 
 EMBEDDING_DEVICE: Final[str] = "cpu"
-
 NORMALIZE_EMBEDDINGS: Final[bool] = True
 
 

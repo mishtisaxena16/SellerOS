@@ -1,0 +1,12 @@
+# Tool / Agent / Connector layer
+pydantic>=2.0
+playwright>=1.45
+requests>=2.31
+
+# Orchestrator Layer
+langgraph>=0.2
+
+# Knowledge Layer bridge (talks to the SellerOS Knowledge Engine)
+chromadb>=0.5
+ollama>=0.3
+python-dotenv>=1.0
