@@ -28,3 +28,8 @@ chroma_db/
 
 # Temporary files
 structure.txt
+
+#frontend
+node_modules/
+dist/
+.env
