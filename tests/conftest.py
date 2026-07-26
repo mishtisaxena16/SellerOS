@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import socket
 import sys
 from pathlib import Path
+from urllib.parse import urlparse
 
 import pytest
 
@@ -35,3 +37,25 @@ from memory.storage import InMemoryStorage  # noqa: E402
 def storage() -> InMemoryStorage:
     """A fresh, empty in-memory storage backend for each test."""
     return InMemoryStorage()
+
+
+def ollama_is_running(host: str = "http://localhost:11434", timeout: float = 0.5) -> bool:
+    """
+    Cheap reachability check for a local Ollama server: a raw TCP
+    connect with a short timeout, not a full model call. A few tests
+    (test_embedding.py, test_agent.py, test_knowledge.py) are genuine
+    integration tests against a live Ollama instance -- they used to be
+    bare scripts that made a real network call at import time, which
+    failed the entire collection step whenever Ollama wasn't running,
+    instead of cleanly skipping just those tests. This function lets
+    them use `pytestmark = pytest.mark.skipif(not ollama_is_running(...))`
+    so the rest of the suite is unaffected either way.
+    """
+    parsed = urlparse(host)
+    hostname = parsed.hostname or "localhost"
+    port = parsed.port or 11434
+    try:
+        with socket.create_connection((hostname, port), timeout=timeout):
+            return True
+    except OSError:
+        return False

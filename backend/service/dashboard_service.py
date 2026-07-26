@@ -1,29 +1,13 @@
 from sqlalchemy.orm import Session
 
-from backend.model.marketplace_account import (
-    MarketplaceAccount,
-)
+from backend.service.marketplace_data_service import get_dashboard_summary
 
 
 class DashboardService:
 
     @staticmethod
-    def get_summary(
+    async def get_summary(
         db: Session,
         seller_id: int,
     ):
-
-        marketplace_count = (
-            db.query(MarketplaceAccount)
-            .filter(
-                MarketplaceAccount.seller_id == seller_id
-            )
-            .count()
-        )
-
-        return {
-            "connected_marketplaces": marketplace_count,
-            "inventory_items": 156,
-            "pending_orders": 18,
-            "active_listings": 120,
-        }
+        return await get_dashboard_summary(db, seller_id)

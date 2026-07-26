@@ -108,7 +108,19 @@ def _env_credentials(platform: str) -> Dict[str, Any]:
 
 def get_marketplace_session(seller_id: str, platform: Optional[str]) -> Optional[MarketplaceSession]:
     if not platform or platform == "general":
-        return None
+        # No marketplace named in the query (e.g. "what is my inventory"
+        # never says "amazon"). Rather than give up immediately — which
+        # made a seller's real, working Amazon connection look broken the
+        # moment they asked through chat instead of hitting /inventory
+        # directly — fall back to the seller's one connected platform, if
+        # they have exactly one. With two or more connected, there's no
+        # honest way to guess which one the seller means, so this still
+        # returns None rather than silently picking one at random.
+        registered = _REGISTERED.get(seller_id, {})
+        if len(registered) == 1:
+            platform = next(iter(registered))
+        else:
+            return None
 
     credentials = _REGISTERED.get(seller_id, {}).get(platform)
     if credentials is None:

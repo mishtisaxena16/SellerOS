@@ -102,3 +102,33 @@ def fetch_shipments(
 # unchanged. fetch_shipments should call SP-API's Shipping/Tracking API
 # (or the Orders API's getOrderItems shipment fields, depending on which
 # scope you're granted) instead of reading shipments.json.
+
+
+def fetch_sales_metrics(session, start_date=None, end_date=None, timeframe: str = "30d") -> dict[str, Any]:
+    # Derived from orders.json rather than a second, disconnected set of
+    # numbers, so this stays internally consistent with fetch_orders.
+    orders = _load_sample("orders.json")
+    total_revenue = sum(o.get("OrderTotal", {}).get("Amount", 0) for o in orders)
+    return {
+        "platform": "amazon",
+        "timeframe": timeframe,
+        "total_orders": len(orders),
+        "total_revenue": total_revenue,
+        "average_order_value": round(total_revenue / len(orders), 2) if orders else 0.0,
+        "currency": "INR",
+        "note": "Mock Mode -- computed from sample_data/amazon/orders.json, not a live SP-API report.",
+    }
+
+
+def fetch_business_metrics(session, start_date=None, end_date=None, timeframe: str = "30d") -> dict[str, Any]:
+    orders = _load_sample("orders.json")
+    shipped = len([o for o in orders if o.get("OrderStatus", "").lower() == "shipped"])
+    pending = len([o for o in orders if o.get("OrderStatus", "").lower() in ("pending", "unshipped")])
+    return {
+        "platform": "amazon",
+        "timeframe": timeframe,
+        "shipped_orders": shipped,
+        "pending_orders": pending,
+        "currency": "INR",
+        "note": "Mock Mode -- computed from sample_data/amazon/orders.json, not a live SP-API report.",
+    }

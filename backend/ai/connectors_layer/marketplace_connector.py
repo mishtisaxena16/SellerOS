@@ -197,8 +197,12 @@ CAMPAIGN_FETCHERS: dict[str, Callable[..., list[dict[str, Any]]]] = {}
 CAMPAIGN_CREATORS: dict[str, Callable[..., CampaignResponse]] = {}
 CAMPAIGN_DELETERS: dict[str, Callable[..., CampaignResponse]] = {}
 
-SALES_METRICS_FETCHERS: dict[str, Callable[..., dict[str, Any]]] = {}
-BUSINESS_METRICS_FETCHERS: dict[str, Callable[..., dict[str, Any]]] = {}
+SALES_METRICS_FETCHERS: dict[str, Callable[..., dict[str, Any]]] = {
+    "amazon": amazon_connector.fetch_sales_metrics,
+}
+BUSINESS_METRICS_FETCHERS: dict[str, Callable[..., dict[str, Any]]] = {
+    "amazon": amazon_connector.fetch_business_metrics,
+}
 
 CONNECTION_VERIFIERS: dict[str, Callable[..., dict[str, Any]]] = {
     "meesho": meesho_connector.verify_connection,

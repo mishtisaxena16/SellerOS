@@ -1,7 +1,32 @@
-chromadb==1.5.9
-langgraph==1.2.9
-ollama==0.6.2
+# ============================================================
+# SellerOS backend — pinned to exact versions that were actually
+# installed and tested together (see the integration test suite in
+# ../tests/). Previously this file listed several packages more than
+# once with different/overlapping constraints (e.g. three separate
+# pydantic lines) — harmless since pip resolved them to one compatible
+# version anyway, but confusing to read and edit. One line per
+# package now.
+# ============================================================
+
+# --- AI Runtime: Tool / Agent / Connector / Knowledge / Orchestrator layers ---
+pydantic[email]==2.13.4
+requests==2.34.2
 playwright==1.61.0
-pydantic==2.13.4
+langgraph==1.2.9
+chromadb==1.5.9
+ollama==0.6.2
 python-dotenv==1.2.2
-Requests==2.34.2
+
+# --- Application Backend (FastAPI) ---
+fastapi>=0.110
+uvicorn[standard]>=0.29
+sqlalchemy>=2.0
+pydantic-settings>=2.2
+python-jose[cryptography]>=3.3
+passlib[bcrypt]>=1.7
+bcrypt==4.0.1  # passlib 1.7.4 does not support bcrypt>=4.1's new backend API -- pin explicitly
+
+# --- Testing ---
+pytest>=8.0
+pytest-asyncio>=0.23
+httpx>=0.27

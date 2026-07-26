@@ -21,14 +21,21 @@ import asyncio
 import sys
 from pathlib import Path
 
-# tests/ now lives at SellerOS/tests/, separate from SellerOS/backend/ —
-# resolve relative to this file instead of assuming cwd is backend/.
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
+import pytest
+
+# tests/ lives at SellerOS/tests/, and every import below is now
+# "backend.ai...." (absolute from SellerOS/, matching main.py's own
+# "backend.api...."/"backend.ai...." style) rather than the older
+# "ai...." relative-to-backend/ style — so sys.path needs backend/'s
+# *parent* (SellerOS/) on it, not backend/ itself.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import backend.ai.orchestrator_layer.orchestrator as orchestrator
 import backend.ai.supervisor_layer.supervisor as supervisor_module
 from backend.ai.connectors_layer import session_store
 from backend.ai.agent_layer.base.reasoning import ReasonerResult
+
+pytestmark = pytest.mark.asyncio
 
 
 class FakeReasoner:
@@ -42,6 +49,23 @@ def _patch_all_agents_with_fake_reasoner() -> None:
     fake = FakeReasoner()
     for key in orchestrator.agent_registry.list_agents():
         orchestrator.agent_registry.get(key).reasoner = fake
+
+
+@pytest.fixture(autouse=True)
+def patched_reasoner():
+    """
+    Applies the same FakeReasoner patch to every registered agent
+    before each test. Previously this only happened inside main()'s
+    manual test runner (the `if __name__ == "__main__":` block below)
+    -- which means under an actual `pytest` invocation (rather than
+    `python3 test_integration_e2e.py`), every test function here would
+    have silently exercised the REAL OllamaReasoner instead, defeating
+    the whole point of this file (this sandbox has no Ollama server
+    reachable). An autouse fixture applies it uniformly regardless of
+    how the tests are invoked.
+    """
+    _patch_all_agents_with_fake_reasoner()
+    yield
 
 
 def _check(label: str, condition: bool, detail: str = "") -> None:

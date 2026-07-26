@@ -103,7 +103,7 @@ import backend.ai.memory_layer.memory_bridge as memory_bridge
 
 memory_bridge.ensure_on_path()
 from memory.service import MemoryService  # noqa: E402 (see memory_bridge.ensure_on_path() above)
-from memory.storage import InMemoryStorage  # noqa: E402
+from memory.sqlite_storage import SQLiteMemoryStore  # noqa: E402
 
 
 # =============================================================================
@@ -117,7 +117,13 @@ _tool_registry = build_default_tool_registry()
 # InMemoryStorage today; swap for a Redis/Postgres-backed BaseMemoryStore
 # later without any caller (this file, supervisor.py) needing to change —
 # same reasoning as memory/service.py's own docstring.
-memory_service: Optional[MemoryService] = MemoryService(InMemoryStorage())
+# Previously InMemoryStorage — wiped on every process restart, which is
+# fine for a dev backend but was an open decision flagged in the Backend
+# Handoff doc ("conversation persistence"). Resolved in favor of a real
+# BaseMemoryStore backend (SQLiteMemoryStore) so conversation history
+# survives restarts without the Application Backend needing its own,
+# separate conversations table — see sqlite_storage.py's module docstring.
+memory_service: Optional[MemoryService] = MemoryService(SQLiteMemoryStore())
 
 # One ToolManager per seller_id, built lazily and reused — ToolManager is
 # explicitly seller/session-scoped (agent_layer/base/tool_manager.py), so

@@ -4,6 +4,7 @@ from sqlalchemy import DateTime
 from sqlalchemy import ForeignKey
 from sqlalchemy import JSON
 from sqlalchemy import String
+from sqlalchemy import UniqueConstraint
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
 from sqlalchemy.orm import relationship
@@ -20,6 +21,17 @@ class MarketplaceAccount(Base):
     """
 
     __tablename__ = "marketplace_accounts"
+
+    # Second line of defense against duplicate rows for the same
+    # seller+platform (the service layer's upsert is the first line).
+    # session_store only ever holds ONE credential set per seller+
+    # platform, so two DB rows for the same pair means one of them is
+    # always a silent lie: whichever row you delete, the other one
+    # keeps showing "connected" in the dashboard while the AI runtime's
+    # session is actually gone.
+    __table_args__ = (
+        UniqueConstraint("seller_id", "platform", name="uq_marketplace_seller_platform"),
+    )
 
     id: Mapped[int] = mapped_column(
         primary_key=True,

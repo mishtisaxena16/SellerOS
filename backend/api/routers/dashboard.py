@@ -17,14 +17,14 @@ router = APIRouter(
 )
 
 @router.get("/summary")
-def summary(
+async def summary(
     db: Session = Depends(get_db),
     seller: Seller = Depends(
         get_current_seller
     ),
 ):
 
-    return DashboardService.get_summary(
+    return await DashboardService.get_summary(
         db=db,
         seller_id=seller.id,
     )

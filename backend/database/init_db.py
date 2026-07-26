@@ -1,3 +1,4 @@
+from backend.config.logging import get_logger
 from backend.database.base import Base
 from backend.database.database import engine
 
@@ -5,6 +6,8 @@ from backend.database.database import engine
 from backend.model.user import User
 from backend.model.seller import Seller
 from backend.model.marketplace_account import MarketplaceAccount
+
+logger = get_logger(__name__)
 
 
 def init_db() -> None:
@@ -14,4 +17,4 @@ def init_db() -> None:
 
     Base.metadata.create_all(bind=engine)
 
-    print("Database initialized successfully.")
+    logger.info("Database initialized successfully.")
