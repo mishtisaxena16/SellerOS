@@ -262,14 +262,33 @@ class Supervisor:
     async def handle(
         self,
         query: str,
-        seller_id: str = "default_seller",
+        seller_id: str,
         session_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         The one method a Backend API layer should call for a fresh
         user turn. Returns a plain dict (see SupervisorResult.as_dict) —
         no LangGraph types, no orchestrator internals leak through.
+
+        seller_id is required, on purpose, with no fallback default.
+        This used to default to "default_seller" — convenient for
+        early testing, but a real liability once a backend with real
+        auth calls this: if an auth-middleware bug ever fails to
+        attach a real seller_id, a silent default would route that
+        request into a shared bucket instead of failing — mixing one
+        seller's conversation history and marketplace data with
+        another's, discovered only much later. Failing loudly here,
+        at the one entry point every backend request passes through,
+        is a lot cheaper than finding that bug in production.
         """
+        if not seller_id or not seller_id.strip():
+            raise ValueError(
+                "Supervisor.handle() requires a real seller_id — the caller "
+                "(the backend's Chat API) must resolve this from the "
+                "authenticated request before calling handle(), not leave "
+                "it blank or rely on a default."
+            )
+
         self._memory.ensure_session(session_id, seller_id)
         self._memory.record_user_message(session_id, query)
 
