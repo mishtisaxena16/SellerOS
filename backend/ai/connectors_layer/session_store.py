@@ -60,7 +60,7 @@ from __future__ import annotations
 import os
 from typing import Any, Dict, Optional
 
-from ai.connectors_layer.marketplace_connector import MarketplaceSession
+from backend.ai.connectors_layer.marketplace_connector import MarketplaceSession
 
 _REGISTERED: Dict[str, Dict[str, Dict[str, Any]]] = {}
 

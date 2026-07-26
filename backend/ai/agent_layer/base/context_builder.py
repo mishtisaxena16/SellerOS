@@ -33,7 +33,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from ai.connectors_layer.marketplace_connector import MarketplaceSession
+from backend.ai.connectors_layer.marketplace_connector import MarketplaceSession
 
 
 @dataclass

@@ -41,8 +41,8 @@ from datetime import datetime
 from typing import Any, Callable, Optional
 from pydantic import BaseModel, Field
 
-from ai.models.models import Product, Order, Inventory, Campaign, Shipment, Account
-from ai.connectors_layer.normalizer import (
+from backend.ai.models.models import Product, Order, Inventory, Campaign, Shipment, Account
+from backend.ai.connectors_layer.normalizer import (
     normalize_product,
     normalize_order,
     normalize_inventory,
@@ -50,7 +50,7 @@ from ai.connectors_layer.normalizer import (
     normalize_shipment,
     normalize_account,
 )
-from ai.connectors_layer.exceptions import (
+from backend.ai.connectors_layer.exceptions import (
     ConnectorError,
     AuthenticationError,
     InvalidCredentialsError,
@@ -157,7 +157,7 @@ def _dispatch(registry: dict[str, Callable[..., Any]], platform: str, operation:
 #    Branching by platform happens cleanly through dict maps.
 # ---------------------------------------------------------------------------
 
-from ai.connectors_layer import amazon_connector, flipkart_connector, meesho_connector
+from backend.ai.connectors_layer import amazon_connector, flipkart_connector, meesho_connector
 
 PRODUCT_FETCHERS: dict[str, Callable[..., list[dict[str, Any]]]] = {
     "amazon": amazon_connector.fetch_products,

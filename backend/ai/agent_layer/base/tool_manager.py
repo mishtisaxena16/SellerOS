@@ -30,10 +30,10 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from ai.tools_layer.base.tool_context import ToolContext
-from ai.tools_layer.base.tool_result import ToolResult
-from ai.tools_layer.registry.tool_registry import ToolRegistry
-from ai.connectors_layer.marketplace_connector import MarketplaceSession
+from backend.ai.tools_layer.base.tool_context import ToolContext
+from backend.ai.tools_layer.base.tool_result import ToolResult
+from backend.ai.tools_layer.registry.tool_registry import ToolRegistry
+from backend.ai.connectors_layer.marketplace_connector import MarketplaceSession
 
 
 class ToolManager:

@@ -7,8 +7,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
-from ai.tools_layer.knowledge.knowledge_tool import KnowledgeTool
-from ai.tools_layer.base.tool_context import ToolContext
+from backend.ai.tools_layer.knowledge.knowledge_tool import KnowledgeTool
+from backend.ai.tools_layer.base.tool_context import ToolContext
 
 
 async def main():

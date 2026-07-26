@@ -8,8 +8,8 @@ docstring for why.
 """
 from __future__ import annotations
 
-from ai.agent_layer.registry.agent_registry import AgentRegistry
-from ai.agent_layer.sustainability.sustainability_agent import SustainabilityAgent
+from backend.ai.agent_layer.registry.agent_registry import AgentRegistry
+from backend.ai.agent_layer.sustainability.sustainability_agent import SustainabilityAgent
 
 
 def register(registry: AgentRegistry, reasoner) -> None:

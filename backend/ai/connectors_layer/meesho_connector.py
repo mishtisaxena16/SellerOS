@@ -39,7 +39,7 @@ from playwright.sync_api import (
     TimeoutError as PlaywrightTimeoutError,
 )
 
-from ai.connectors_layer.exceptions import (
+from backend.ai.connectors_layer.exceptions import (
     AuthenticationError,
     InvalidCredentialsError,
     RateLimitError,

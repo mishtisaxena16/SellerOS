@@ -12,11 +12,11 @@ back their suggestions with real numbers.
 """
 from __future__ import annotations
 
-from ai.agent_layer.registry.agent_registry import AgentRegistry
-from ai.agent_layer.marketing.ads_agent import AdsAgent
-from ai.agent_layer.marketing.campaign_agent import CampaignAgent
-from ai.agent_layer.marketing.seo_agent import SEOAgent
-from ai.agent_layer.marketing.content_agent import ContentAgent
+from backend.ai.agent_layer.registry.agent_registry import AgentRegistry
+from backend.ai.agent_layer.marketing.ads_agent import AdsAgent
+from backend.ai.agent_layer.marketing.campaign_agent import CampaignAgent
+from backend.ai.agent_layer.marketing.seo_agent import SEOAgent
+from backend.ai.agent_layer.marketing.content_agent import ContentAgent
 
 
 def register(registry: AgentRegistry, reasoner) -> None:

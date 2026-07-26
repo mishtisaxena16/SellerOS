@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-from ai.agent_layer.base.context_builder import PromptContext
+from backend.ai.agent_layer.base.context_builder import PromptContext
 
 PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
 

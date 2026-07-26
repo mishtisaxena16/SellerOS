@@ -11,6 +11,9 @@ __pycache__/
 *.pyo
 *.egg-info/
 
+# SQLite
+*.db
+
 # Editors
 .vscode/
 .idea/

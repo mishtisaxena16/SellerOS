@@ -83,23 +83,23 @@ from langgraph.graph import END, StateGraph
 
 # Agent Layer — real interfaces (see module docstring above for what
 # was fixed here).
-from ai.agent_layer.registry.agent_registry import AgentRegistry, AgentNotFoundError, build_default_registry
-from ai.agent_layer.base.reasoning import OllamaReasoner
-from ai.agent_layer.base.tool_manager import ToolManager
+from backend.ai.agent_layer.registry.agent_registry import AgentRegistry, AgentNotFoundError, build_default_registry
+from backend.ai.agent_layer.base.reasoning import OllamaReasoner
+from backend.ai.agent_layer.base.tool_manager import ToolManager
 
 # Tool Layer — one ToolManager per seller_id is built against this.
-from ai.tools_layer.registry.tool_registry import build_default_registry as build_default_tool_registry
+from backend.ai.tools_layer.registry.tool_registry import build_default_registry as build_default_tool_registry
 
 # Guardrail Engine singleton (backend/guardrails.py).
-from ai.guardrails_layer.guardrails import guardrail_engine
+from backend.ai.guardrails_layer.guardrails import guardrail_engine
 
 # MarketplaceSession seam — see connectors/session_store.py's module
 # docstring for why this exists and the "never in checkpointed state"
 # guarantee it preserves.
-from ai.connectors_layer.session_store import get_marketplace_session
+from backend.ai.connectors_layer.session_store import get_marketplace_session
 
 # Memory Layer — bridged in from backend/memory_layer/memory/.
-import ai.memory_layer.memory_bridge as memory_bridge
+import backend.ai.memory_layer.memory_bridge as memory_bridge
 
 memory_bridge.ensure_on_path()
 from memory.service import MemoryService  # noqa: E402 (see memory_bridge.ensure_on_path() above)

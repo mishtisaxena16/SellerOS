@@ -24,9 +24,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from ai.agent_layer.base.agent import BaseAgent
-from ai.agent_layer.base.context_builder import ContextSection
-from ai.agent_layer.base.state import AgentState
+from backend.ai.agent_layer.base.agent import BaseAgent
+from backend.ai.agent_layer.base.context_builder import ContextSection
+from backend.ai.agent_layer.base.state import AgentState
 
 
 class ProfitabilityAgent(BaseAgent):

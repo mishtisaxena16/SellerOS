@@ -28,8 +28,8 @@ import time
 from abc import ABC, abstractmethod
 from typing import Any
 
-from ai.tools_layer.base.tool_context import ToolContext
-from ai.tools_layer.base.tool_result import ToolResult
+from backend.ai.tools_layer.base.tool_context import ToolContext
+from backend.ai.tools_layer.base.tool_result import ToolResult
 
 
 class BaseTool(ABC):

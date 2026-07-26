@@ -22,8 +22,8 @@ from __future__ import annotations
 import os
 from typing import Any, Optional
 
-from ai.connectors_layer import flipkart_api_connector as _api
-from ai.connectors_layer import flipkart_playwright_connector as _playwright
+from backend.ai.connectors_layer import flipkart_api_connector as _api
+from backend.ai.connectors_layer import flipkart_playwright_connector as _playwright
 
 
 def _api_credentials_present() -> bool:

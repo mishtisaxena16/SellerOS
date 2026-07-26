@@ -21,11 +21,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from ai.agent_layer.base.agent import BaseAgent
-from ai.agent_layer.base.agent_result import AgentResult
-from ai.agent_layer.base.state import AgentState
-from ai.agent_layer.base.tool_manager import ToolManager
-from ai.connectors_layer.marketplace_connector import MarketplaceSession
+from backend.ai.agent_layer.base.agent import BaseAgent
+from backend.ai.agent_layer.base.agent_result import AgentResult
+from backend.ai.agent_layer.base.state import AgentState
+from backend.ai.agent_layer.base.tool_manager import ToolManager
+from backend.ai.connectors_layer.marketplace_connector import MarketplaceSession
 
 
 class ContentAgent(BaseAgent):

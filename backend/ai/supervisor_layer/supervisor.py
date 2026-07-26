@@ -60,8 +60,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-import ai.orchestrator_layer.orchestrator as orchestrator
-from ai.orchestrator_layer.orchestrator import router as intent_router  # the existing IntentRouter, reused rather than duplicated
+import backend.ai.orchestrator_layer.orchestrator as orchestrator
+from backend.ai.orchestrator_layer.orchestrator import router as intent_router  # the existing IntentRouter, reused rather than duplicated
 
 
 # =============================================================================

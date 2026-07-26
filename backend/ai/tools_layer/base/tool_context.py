@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 from uuid import uuid4
 
-from ai.connectors_layer.marketplace_connector import MarketplaceSession
+from backend.ai.connectors_layer.marketplace_connector import MarketplaceSession
 
 
 @dataclass

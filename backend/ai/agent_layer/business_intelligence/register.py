@@ -12,11 +12,11 @@ docstring for specifics.
 """
 from __future__ import annotations
 
-from ai.agent_layer.registry.agent_registry import AgentRegistry
-from ai.agent_layer.business_intelligence.analytics_agent import AnalyticsAgent
-from ai.agent_layer.business_intelligence.forecast_agent import ForecastAgent
-from ai.agent_layer.business_intelligence.profitability_agent import ProfitabilityAgent
-from ai.agent_layer.business_intelligence.competitor_agent import CompetitorAgent
+from backend.ai.agent_layer.registry.agent_registry import AgentRegistry
+from backend.ai.agent_layer.business_intelligence.analytics_agent import AnalyticsAgent
+from backend.ai.agent_layer.business_intelligence.forecast_agent import ForecastAgent
+from backend.ai.agent_layer.business_intelligence.profitability_agent import ProfitabilityAgent
+from backend.ai.agent_layer.business_intelligence.competitor_agent import CompetitorAgent
 
 
 def register(registry: AgentRegistry, reasoner) -> None:

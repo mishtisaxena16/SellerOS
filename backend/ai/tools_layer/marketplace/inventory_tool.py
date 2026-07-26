@@ -14,11 +14,11 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from ai.tools_layer.base.base_tool import BaseTool
-from ai.tools_layer.base.tool_context import ToolContext
-from ai.tools_layer.base.tool_result import ToolResult
-from ai.tools_layer.marketplace._helpers import get_session, run_connector_call
-from ai.connectors_layer import marketplace_connector as mc
+from backend.ai.tools_layer.base.base_tool import BaseTool
+from backend.ai.tools_layer.base.tool_context import ToolContext
+from backend.ai.tools_layer.base.tool_result import ToolResult
+from backend.ai.tools_layer.marketplace._helpers import get_session, run_connector_call
+from backend.ai.connectors_layer import marketplace_connector as mc
 
 
 class InventoryTool(BaseTool):

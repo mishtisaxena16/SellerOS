@@ -1,9 +1,9 @@
 """Domain self-registration for product_studio — see agent_layer/registry/agent_registry.py."""
 from __future__ import annotations
 
-from ai.agent_layer.registry.agent_registry import AgentRegistry
-from ai.agent_layer.product_studio.listing_agent import ListingAgent
-from ai.agent_layer.product_studio.pricing_agent import PricingAgent
+from backend.ai.agent_layer.registry.agent_registry import AgentRegistry
+from backend.ai.agent_layer.product_studio.listing_agent import ListingAgent
+from backend.ai.agent_layer.product_studio.pricing_agent import PricingAgent
 
 
 def register(registry: AgentRegistry, reasoner) -> None:

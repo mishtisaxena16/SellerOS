@@ -32,7 +32,7 @@ from typing import Any, Optional
 
 import requests
 
-from ai.connectors_layer.exceptions import (
+from backend.ai.connectors_layer.exceptions import (
     AuthenticationError,
     InvalidCredentialsError,
     RateLimitError,

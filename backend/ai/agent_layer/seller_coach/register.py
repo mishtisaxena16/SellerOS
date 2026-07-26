@@ -1,8 +1,8 @@
 """Domain self-registration for seller_coach — see agent_layer/registry/agent_registry.py."""
 from __future__ import annotations
 
-from ai.agent_layer.registry.agent_registry import AgentRegistry
-from ai.agent_layer.seller_coach.coach_agent import SellerCoachAgent
+from backend.ai.agent_layer.registry.agent_registry import AgentRegistry
+from backend.ai.agent_layer.seller_coach.coach_agent import SellerCoachAgent
 
 
 def register(registry: AgentRegistry, reasoner) -> None:

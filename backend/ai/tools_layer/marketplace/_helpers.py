@@ -34,15 +34,15 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Callable, TypeVar
 
-from ai.connectors_layer.marketplace_connector import (
+from backend.ai.connectors_layer.marketplace_connector import (
     AuthenticationError,
     InvalidCredentialsError,
     MarketplaceSession,
     MarketplaceUnavailableError,
     RateLimitError,
 )
-from ai.tools_layer.base.tool_context import ToolContext
-from ai.tools_layer.base.tool_result import ToolResult
+from backend.ai.tools_layer.base.tool_context import ToolContext
+from backend.ai.tools_layer.base.tool_result import ToolResult
 
 T = TypeVar("T")
 

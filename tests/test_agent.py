@@ -4,11 +4,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
-from ai.agent_layer.seller_coach.coach_agent import SellerCoachAgent
-from ai.agent_layer.base.reasoning import OllamaReasoner
-from ai.agent_layer.base.tool_manager import ToolManager
+from backend.ai.agent_layer.seller_coach.coach_agent import SellerCoachAgent
+from backend.ai.agent_layer.base.reasoning import OllamaReasoner
+from backend.ai.agent_layer.base.tool_manager import ToolManager
 
-from ai.tools_layer.registry.tool_registry import build_default_registry
+from backend.ai.tools_layer.registry.tool_registry import build_default_registry
 
 
 async def main():

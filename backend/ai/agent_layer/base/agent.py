@@ -52,15 +52,15 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any, Optional
 
-from ai.agent_layer.base.agent_result import AgentResult
-from ai.agent_layer.base.context_builder import ContextBuilder
-from ai.agent_layer.base.executor import Executor
-from ai.agent_layer.base.planner import Planner
-from ai.agent_layer.base.prompt_builder import PromptBuilder
-from ai.agent_layer.base.reasoning import LLMReasoner
-from ai.agent_layer.base.state import AgentState
-from ai.agent_layer.base.tool_manager import ToolManager
-from ai.connectors_layer.marketplace_connector import MarketplaceSession
+from backend.ai.agent_layer.base.agent_result import AgentResult
+from backend.ai.agent_layer.base.context_builder import ContextBuilder
+from backend.ai.agent_layer.base.executor import Executor
+from backend.ai.agent_layer.base.planner import Planner
+from backend.ai.agent_layer.base.prompt_builder import PromptBuilder
+from backend.ai.agent_layer.base.reasoning import LLMReasoner
+from backend.ai.agent_layer.base.state import AgentState
+from backend.ai.agent_layer.base.tool_manager import ToolManager
+from backend.ai.connectors_layer.marketplace_connector import MarketplaceSession
 
 
 class BaseAgent(ABC):

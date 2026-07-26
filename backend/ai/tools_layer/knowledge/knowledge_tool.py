@@ -30,10 +30,10 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Optional
 
-from ai.tools_layer.base.base_tool import BaseTool
-from ai.tools_layer.base.tool_context import ToolContext
-from ai.tools_layer.base.tool_result import ToolResult
-from ai.tools_layer.knowledge.engine_bridge import ensure_on_path
+from backend.ai.tools_layer.base.base_tool import BaseTool
+from backend.ai.tools_layer.base.tool_context import ToolContext
+from backend.ai.tools_layer.base.tool_result import ToolResult
+from backend.ai.tools_layer.knowledge.engine_bridge import ensure_on_path
 
 # Must run before importing anything from the Knowledge Engine project.
 ensure_on_path()

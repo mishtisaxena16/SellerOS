@@ -15,7 +15,7 @@ reason to add it preemptively now.
 """
 from __future__ import annotations
 
-from ai.tools_layer.base.base_tool import BaseTool
+from backend.ai.tools_layer.base.base_tool import BaseTool
 
 
 class ToolNotFoundError(KeyError):
@@ -58,13 +58,13 @@ def build_default_registry() -> ToolRegistry:
     startup (e.g. in the FastAPI lifespan handler); the returned
     registry is then shared across requests.
     """
-    from ai.tools_layer.knowledge.knowledge_tool import KnowledgeTool
-    from ai.tools_layer.marketplace.listing_tool import ListingTool
-    from ai.tools_layer.marketplace.inventory_tool import InventoryTool
-    from ai.tools_layer.marketplace.orders_tool import OrdersTool
-    from ai.tools_layer.marketplace.analytics_tool import AnalyticsTool
-    from ai.tools_layer.marketplace.ads_tool import AdsTool
-    from ai.tools_layer.marketplace.account_tool import AccountTool
+    from backend.ai.tools_layer.knowledge.knowledge_tool import KnowledgeTool
+    from backend.ai.tools_layer.marketplace.listing_tool import ListingTool
+    from backend.ai.tools_layer.marketplace.inventory_tool import InventoryTool
+    from backend.ai.tools_layer.marketplace.orders_tool import OrdersTool
+    from backend.ai.tools_layer.marketplace.analytics_tool import AnalyticsTool
+    from backend.ai.tools_layer.marketplace.ads_tool import AdsTool
+    from backend.ai.tools_layer.marketplace.account_tool import AccountTool
 
     registry = ToolRegistry()
     registry.register("knowledge", KnowledgeTool())

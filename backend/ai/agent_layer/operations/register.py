@@ -1,9 +1,9 @@
 """Domain self-registration for operations — see agent_layer/registry/agent_registry.py."""
 from __future__ import annotations
 
-from ai.agent_layer.registry.agent_registry import AgentRegistry
-from ai.agent_layer.operations.inventory_agent import InventoryAgent
-from ai.agent_layer.operations.orders_agent import OrdersAgent
+from backend.ai.agent_layer.registry.agent_registry import AgentRegistry
+from backend.ai.agent_layer.operations.inventory_agent import InventoryAgent
+from backend.ai.agent_layer.operations.orders_agent import OrdersAgent
 
 
 def register(registry: AgentRegistry, reasoner) -> None:

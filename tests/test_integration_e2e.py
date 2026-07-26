@@ -25,10 +25,10 @@ from pathlib import Path
 # resolve relative to this file instead of assuming cwd is backend/.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
-import ai.orchestrator_layer.orchestrator as orchestrator
-import ai.supervisor_layer.supervisor as supervisor_module
-from ai.connectors_layer import session_store
-from ai.agent_layer.base.reasoning import ReasonerResult
+import backend.ai.orchestrator_layer.orchestrator as orchestrator
+import backend.ai.supervisor_layer.supervisor as supervisor_module
+from backend.ai.connectors_layer import session_store
+from backend.ai.agent_layer.base.reasoning import ReasonerResult
 
 
 class FakeReasoner:
@@ -116,7 +116,7 @@ async def test_guardrail_blocks_bad_tool_name():
     """Directly exercise the fixed ToolExecutionRule with a state that
     claims an unauthorized tool ran, confirming ALLOWED_TOOLS now
     actually matches real tool keys and the rule fires on the right field."""
-    from ai.guardrails_layer.guardrails import guardrail_engine
+    from backend.ai.guardrails_layer.guardrails import guardrail_engine
 
     state_good = {"executed_tools": [{"agent": "inventory_agent", "tool": "inventory", "action": "get_inventory", "success": True}]}
     result_good = guardrail_engine.evaluate(state_good)

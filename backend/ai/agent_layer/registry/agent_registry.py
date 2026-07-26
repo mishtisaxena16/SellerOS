@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from ai.agent_layer.base.agent import BaseAgent
+from backend.ai.agent_layer.base.agent import BaseAgent
 
 
 class AgentNotFoundError(KeyError):
@@ -75,12 +75,12 @@ class AgentRegistry:
 # one entry here — NOT teaching this file about the domain's individual
 # agents; that knowledge lives in the domain's own register.py.
 _DOMAIN_MODULES = (
-    "ai.agent_layer.seller_coach.register",
-    "ai.agent_layer.product_studio.register",
-    "ai.agent_layer.operations.register",
-    "ai.agent_layer.business_intelligence.register",
-    "ai.agent_layer.marketing.register",
-    "ai.agent_layer.sustainability.register",
+    "backend.ai.agent_layer.seller_coach.register",
+    "backend.ai.agent_layer.product_studio.register",
+    "backend.ai.agent_layer.operations.register",
+    "backend.ai.agent_layer.business_intelligence.register",
+    "backend.ai.agent_layer.marketing.register",
+    "backend.ai.agent_layer.sustainability.register",
 )
 
 

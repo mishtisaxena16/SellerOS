@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from ai.models.models import Product, Order, OrderItem, Inventory, Campaign, Shipment, Account
+from backend.ai.models.models import Product, Order, OrderItem, Inventory, Campaign, Shipment, Account
 
 # ---------------------------------------------------------------------------
 # Field maps: platform -> our_field -> source_field (dot-path supported)
