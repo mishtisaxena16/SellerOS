@@ -2,7 +2,6 @@ from datetime import datetime
 
 from sqlalchemy import DateTime
 from sqlalchemy import ForeignKey
-from sqlalchemy import JSON
 from sqlalchemy import String
 from sqlalchemy import UniqueConstraint
 from sqlalchemy.orm import Mapped
@@ -10,6 +9,7 @@ from sqlalchemy.orm import mapped_column
 from sqlalchemy.orm import relationship
 
 from backend.database.base import Base
+from backend.database.crypto import EncryptedJSON
 
 
 class MarketplaceAccount(Base):
@@ -50,8 +50,11 @@ class MarketplaceAccount(Base):
         index=True,
     )
 
+    # Encrypted at rest (Fernet, keyed from SECRET_KEY) -- see
+    # backend/database/crypto.py. Python-side this still behaves like a
+    # plain dict; only the on-disk representation is ciphertext.
     credentials: Mapped[dict] = mapped_column(
-        JSON,
+        EncryptedJSON,
         nullable=False,
     )
 

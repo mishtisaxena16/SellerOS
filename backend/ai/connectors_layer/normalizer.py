@@ -55,10 +55,22 @@ ORDER_FIELD_MAPS: dict[str, dict[str, str]] = {
         "customer_state": "customer_state",
     },
     "amazon": {
-        "order_id": "AmazonOrderId",
-        "status": "OrderStatus",
-        "total_amount": "OrderTotal.Amount",
-        "order_date": "PurchaseDate",
+        # v2026-01-01 field paths (verified against the official Orders
+        # API Migration Guide's "Order attribute mapping" table -- v0's
+        # flat AmazonOrderId/OrderStatus/OrderTotal.Amount/PurchaseDate
+        # became nested objects in the new API). orderId/createdTime/
+        # fulfillment/salesChannel are always present in a searchOrders
+        # or getOrder response; proceeds.grandTotal requires
+        # includedData=PROCEEDS, which config.DEFAULT_ORDERS_INCLUDED_DATA
+        # always requests.
+        "order_id": "orderId",
+        "status": "fulfillment.fulfillmentStatus",
+        "total_amount": "proceeds.grandTotal.amount",
+        "order_date": "createdTime",
+        "last_updated_date": "lastUpdatedTime",
+        "fulfillment_channel": "fulfillment.fulfilledBy",
+        "marketplace": "salesChannel.marketplaceName",
+        "shipping_service_level": "fulfillment.fulfillmentServiceLevel",
     },
     "flipkart": {
         "order_id": "orderId",
@@ -135,19 +147,61 @@ def normalize_product(platform: str, raw: dict[str, Any]) -> Product:
     )
 
 
+def _extract_amazon_order_items(raw: dict[str, Any]) -> list[OrderItem]:
+    """
+    Amazon (v2026-01-01) nests items under orderItems[].product.* rather
+    than the flat {sku, quantity, unit_price} shape meesho/flipkart use
+    -- see the Migration Guide's OrderItem attribute table: ASIN ->
+    orderItems[].product.asin, SellerSKU -> orderItems[].product.sellerSku,
+    Title -> orderItems[].product.title, QuantityOrdered ->
+    orderItems[].quantityOrdered. ItemPrice moved into a
+    proceeds.breakdowns[] structure (requires includedData=PROCEEDS,
+    type == "ITEM") rather than a single flat field -- extracted here
+    defensively (None if PROCEEDS wasn't requested/present) rather than
+    raising, since unit_price is optional on OrderItem.
+    """
+    items: list[OrderItem] = []
+    for item in raw.get("orderItems") or []:
+        if not isinstance(item, dict):
+            continue
+        product = item.get("product") or {}
+        unit_price = None
+        proceeds = item.get("proceeds") or {}
+        for breakdown in proceeds.get("breakdowns") or []:
+            if isinstance(breakdown, dict) and breakdown.get("type") == "ITEM":
+                unit_price = _dig(breakdown, "subtotal.amount")
+                break
+        items.append(
+            OrderItem(
+                sku=str(product.get("sellerSku") or ""),
+                quantity=int(item.get("quantityOrdered") or 0),
+                unit_price=float(unit_price) if unit_price is not None else None,
+                order_item_id=item.get("orderItemId"),
+                asin=product.get("asin"),
+                title=product.get("title"),
+            )
+        )
+    return items
+
+
 def normalize_order(platform: str, raw: dict[str, Any]) -> Order:
     mapped = _map_fields(platform, ORDER_FIELD_MAPS, raw)
-    items_raw = raw.get("items") or raw.get("order_items") or []
-    items = [
-        OrderItem(
-            sku=str(item.get("sku", "")),
-            quantity=int(item.get("quantity", 0)),
-            unit_price=item.get("unit_price") or item.get("price"),
-        )
-        for item in items_raw
-        if isinstance(item, dict)
-    ]
-    return Order(
+
+    if platform == "amazon":
+        items = _extract_amazon_order_items(raw)
+    else:
+        items_raw = raw.get("items") or raw.get("order_items") or []
+        items = [
+            OrderItem(
+                sku=str(item.get("sku", "")),
+                quantity=int(item.get("quantity", 0)),
+                unit_price=item.get("unit_price") or item.get("price"),
+            )
+            for item in items_raw
+            if isinstance(item, dict)
+        ]
+
+    order_kwargs: dict[str, Any] = dict(
         platform=platform,
         order_id=str(mapped.get("order_id") or ""),
         status=str(mapped.get("status") or "unknown"),
@@ -157,6 +211,20 @@ def normalize_order(platform: str, raw: dict[str, Any]) -> Order:
         customer_state=mapped.get("customer_state"),
         raw=raw,
     )
+
+    if platform == "amazon":
+        currency = _dig(raw, "proceeds.grandTotal.currencyCode")
+        order_kwargs.update(
+            last_updated_date=_parse_date(mapped.get("last_updated_date")),
+            fulfillment_channel=mapped.get("fulfillment_channel"),
+            marketplace=mapped.get("marketplace"),
+            item_count=len(items),
+            shipping_service_level=mapped.get("shipping_service_level"),
+        )
+        if currency:
+            order_kwargs["currency"] = currency
+
+    return Order(**order_kwargs)
 
 
 def normalize_inventory(platform: str, raw: dict[str, Any]) -> Inventory:

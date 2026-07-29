@@ -1,0 +1,334 @@
+import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
+import {
+  TrendingUp, Package, ShoppingBag, RotateCcw, Sparkles, ArrowRight,
+  AlertCircle, PlugZap, Wand2, MessageCircle, Loader2, Truck, Clock, Check, Circle,
+} from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
+import { usePlatform, PLATFORM_LABELS } from '../context/PlatformContext'
+import { getDashboardSummary, type DashboardSummary } from '../api/dashboard'
+import { getAnalytics, type AnalyticsResponse } from '../api/analytics'
+import { getInventory, type InventoryItem } from '../api/inventory'
+import { getOrders, type OrderRecord } from '../api/orders'
+import { ApiError } from '../api/client'
+
+const LOW_STOCK_THRESHOLD = 20
+
+function KPICard({
+  label, value, icon: Icon, color, hint, delay = 0,
+}: {
+  label: string; value: string; icon: any; color: string; hint?: string; delay?: number
+}) {
+  return (
+    <div className="card p-5 fade-in" style={{ animationDelay: `${delay}ms`, animationFillMode: 'backwards' }}>
+      <div className={`w-9 h-9 rounded-lg flex items-center justify-center mb-3 ${color}`}>
+        <Icon size={18} />
+      </div>
+      <div className="text-2xl font-bold text-app mb-0.5">{value}</div>
+      <div className="text-[12.5px] text-dim">{label}</div>
+      {hint && <div className="text-[11px] text-faint mt-1">{hint}</div>}
+    </div>
+  )
+}
+
+// Lightweight progress nudge, not a gate — every step here is either already
+// done or reachable from elsewhere in the app. It's informational, so it never
+// blocks navigation the way onboarding's "Continue" button briefly did.
+function GettingStarted({ userType, hasMarketplace }: { userType: 'new' | 'existing' | null; hasMarketplace: boolean }) {
+  const steps = [
+    { label: 'Create account', done: true },
+    { label: 'Choose seller type', done: userType !== null },
+    { label: 'Connect a marketplace', done: hasMarketplace },
+    { label: 'Import listings', done: false },
+  ]
+  return (
+    <div className="card p-5">
+      <div className="text-[13px] font-semibold text-app mb-3">Getting started</div>
+      <div className="flex flex-col gap-2.5">
+        {steps.map(s => (
+          <div key={s.label} className={`flex items-center gap-2.5 text-[13px] ${s.done ? 'text-app' : 'text-faint'}`}>
+            {s.done
+              ? <Check size={15} className="text-accent-green flex-shrink-0" />
+              : <Circle size={15} className="text-faint flex-shrink-0" strokeWidth={1.5} />}
+            {s.label}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// Shown to brand-new sellers instead of forcing the onboarding flow —
+// they can start exploring SellerOS before connecting anything.
+//
+// userType only changes *emphasis* here (copy + tile order), not *what data renders* —
+// that's still gated on connectedPlatforms in Dashboard() below, because "do I have
+// real inventory/order data to show" is a capability question, not an identity one.
+// An "existing" seller who skipped connecting still sees the same empty KPI row an
+// "existing" seller who chose "new" would; only the messaging around it differs.
+function WelcomeState({ firstName, userType }: { firstName: string; userType: 'new' | 'existing' | null }) {
+  const connectAction = {
+    to: '/onboarding', icon: PlugZap, color: 'bg-accent-blue-soft text-accent-blue',
+    title: 'Connect your first marketplace',
+    desc: 'Link Amazon, Flipkart, or Meesho to start seeing real inventory, orders, and analytics here.',
+  }
+  const exploreActions = [
+    {
+      to: '/product-studio', icon: Wand2, color: 'bg-accent-purple-soft text-accent-purple',
+      title: 'Explore Product Studio',
+      desc: 'See how SellerOS helps you write and optimize listings before you connect a store.',
+    },
+    {
+      to: '/seller-coach', icon: MessageCircle, color: 'bg-accent-green-soft text-accent-green',
+      title: 'Chat with Seller Coach',
+      desc: 'Ask questions about growing your marketplace business — no setup required.',
+    },
+  ]
+  // Existing sellers who haven't connected yet (e.g. skipped) get the connect action
+  // first — they told us they already sell somewhere, so that's the fastest path to
+  // real data. New/unset sellers see the exploration options first instead.
+  const actions = userType === 'existing' ? [connectAction, ...exploreActions] : [...exploreActions, connectAction]
+  const heading = userType === 'existing'
+    ? `👋 Welcome back, ${firstName} — let's connect your store`
+    : `👋 Welcome to SellerOS, ${firstName}!`
+  const subheading = userType === 'existing'
+    ? "You mentioned you're already selling online — connect a marketplace to see your real numbers here."
+    : "Here are a few ways to get started — pick whichever's useful first."
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="card p-6 lg:col-span-2">
+          <h2 className="text-xl font-bold text-app">{heading}</h2>
+          <p className="text-[13.5px] text-dim mt-1.5">{subheading}</p>
+        </div>
+        <GettingStarted userType={userType} hasMarketplace={false} />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {actions.map(a => (
+          <Link key={a.to} to={a.to} className="card p-5 flex flex-col gap-3 border-app-hover transition-colors">
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${a.color}`}>
+              <a.icon size={18} />
+            </div>
+            <div>
+              <div className="text-[13.5px] font-semibold text-app mb-1">{a.title}</div>
+              <div className="text-[12px] text-dim leading-relaxed">{a.desc}</div>
+            </div>
+            <span className="text-[12px] text-accent-blue font-medium flex items-center gap-1 mt-auto">
+              Go <ArrowRight size={12} />
+            </span>
+          </Link>
+        ))}
+      </div>
+      <div>
+        <div className="text-[13px] font-semibold text-app mb-3">Your dashboard</div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <KPICard label="Connected Marketplaces" value="0" icon={PlugZap} color="bg-surface text-faint" hint="None yet" />
+          <KPICard label="Inventory Items" value="0" icon={Package} color="bg-surface text-faint" hint="Connect to sync" />
+          <KPICard label="Pending Orders" value="0" icon={ShoppingBag} color="bg-surface text-faint" hint="Connect to sync" />
+          <KPICard label="AI Assistant" value="Ready" icon={Sparkles} color="bg-accent-blue-soft text-accent-blue" hint="Try the chat bubble" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function Dashboard() {
+  const { user, userType } = useAuth()
+  const { selected, connectedPlatforms, loading: platformLoading } = usePlatform()
+  const firstName = user?.business_name?.split(' ')[0] || user?.business_name || 'there'
+
+  const [summary, setSummary] = useState<DashboardSummary | null>(null)
+  const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null)
+  const [inventory, setInventory] = useState<InventoryItem[]>([])
+  const [orders, setOrders] = useState<OrderRecord[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const hasMarketplace = connectedPlatforms.length > 0
+
+  useEffect(() => {
+    if (platformLoading) return
+    if (!hasMarketplace) { setLoading(false); return }
+
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+
+    Promise.allSettled([
+      getDashboardSummary(),
+      getAnalytics(selected),
+      getInventory(selected),
+      getOrders(selected),
+    ]).then(([summaryRes, analyticsRes, inventoryRes, ordersRes]) => {
+      if (cancelled) return
+      if (summaryRes.status === 'fulfilled') setSummary(summaryRes.value)
+      if (analyticsRes.status === 'fulfilled') setAnalytics(analyticsRes.value)
+      if (inventoryRes.status === 'fulfilled' && inventoryRes.value.success) setInventory(inventoryRes.value.items)
+      if (ordersRes.status === 'fulfilled' && ordersRes.value.success) setOrders(ordersRes.value.orders)
+
+      if (summaryRes.status === 'rejected') {
+        const err = summaryRes.reason
+        setError(err instanceof ApiError ? err.message : 'Could not load dashboard data.')
+      }
+    }).finally(() => !cancelled && setLoading(false))
+
+    return () => { cancelled = true }
+  }, [selected, hasMarketplace, platformLoading])
+
+  const lowStockItems = useMemo(
+    () => inventory.filter(i => i.available_quantity > 0 && i.available_quantity < LOW_STOCK_THRESHOLD),
+    [inventory]
+  )
+  const outOfStockCount = useMemo(() => inventory.filter(i => i.available_quantity === 0).length, [inventory])
+  const recentOrders = useMemo(() => orders.slice(0, 5), [orders])
+
+  if (platformLoading) {
+    return (
+      <div className="p-6 flex items-center justify-center h-64">
+        <Loader2 size={18} className="animate-spin text-dim" />
+      </div>
+    )
+  }
+
+  if (!hasMarketplace) {
+    return <div className="p-6 fade-in"><WelcomeState firstName={firstName} userType={userType} /></div>
+  }
+
+  return (
+    <div className="p-6 space-y-6 fade-in">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold text-app">Good to see you, {firstName} 👋</h2>
+          <p className="text-[13px] text-dim mt-0.5">
+            {selected === 'all'
+              ? "Here's what's happening across all your connected stores."
+              : `Showing ${PLATFORM_LABELS[selected]} only.`}
+          </p>
+        </div>
+      </div>
+
+      {error && (
+        <div className="card p-4 flex items-center gap-2 text-[13px] text-accent-red">
+          <AlertCircle size={14} /> {error}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="card p-12 flex items-center justify-center gap-2 text-dim text-[13px]">
+          <Loader2 size={16} className="animate-spin" /> Loading your dashboard…
+        </div>
+      ) : (
+        <>
+          {/* KPI cards — every number here is real, sourced from /dashboard/summary,
+              /analytics, and /inventory. Fields the backend doesn't provide (GMV,
+              ratings, return rate) are simply not shown rather than faked. */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <KPICard
+              delay={0}
+              label="Connected Marketplaces"
+              value={String(summary?.connected_marketplaces ?? connectedPlatforms.length)}
+              icon={PlugZap} color="bg-accent-blue-soft text-accent-blue"
+            />
+            <KPICard
+              delay={60}
+              label="Inventory Items"
+              value={summary?.inventory_items != null ? String(summary.inventory_items) : '—'}
+              icon={Package} color="bg-accent-purple-soft text-accent-purple"
+              hint={outOfStockCount > 0 ? `${outOfStockCount} out of stock` : undefined}
+            />
+            <KPICard
+              delay={120}
+              label="Pending Orders"
+              value={summary?.pending_orders != null ? String(summary.pending_orders) : '—'}
+              icon={ShoppingBag} color="bg-accent-amber-soft text-accent-amber"
+            />
+            <KPICard
+              delay={180}
+              label="Total Revenue"
+              value={analytics?.sales_metrics ? `₹${(analytics.sales_metrics.total_revenue / 1000).toFixed(1)}k` : '—'}
+              icon={TrendingUp} color="bg-accent-green-soft text-accent-green"
+              hint={!analytics?.sales_metrics ? (analytics?.sales_metrics_message ?? 'Not available for this platform') : analytics.sales_metrics.timeframe}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+            {/* Fulfillment snapshot */}
+            <div className="card p-5">
+              <h3 className="text-[14px] font-semibold text-app mb-4">Fulfillment</h3>
+              {analytics?.business_metrics ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 bg-surface rounded-lg">
+                    <div className="flex items-center gap-2 mb-1.5 text-accent-purple"><Truck size={14} /><span className="text-[11.5px] text-dim">Shipped</span></div>
+                    <div className="text-lg font-bold text-app">{analytics.business_metrics.shipped_orders}</div>
+                  </div>
+                  <div className="p-3 bg-surface rounded-lg">
+                    <div className="flex items-center gap-2 mb-1.5 text-accent-blue"><Clock size={14} /><span className="text-[11.5px] text-dim">Pending</span></div>
+                    <div className="text-lg font-bold text-app">{analytics.business_metrics.pending_orders}</div>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[12.5px] text-faint">{analytics?.business_metrics_message ?? 'Not available for this platform yet.'}</p>
+              )}
+              <Link to="/business-intelligence" className="text-[12px] text-accent-blue hover:underline flex items-center gap-1 mt-4">
+                View full analytics <ArrowRight size={12} />
+              </Link>
+            </div>
+
+            {/* Recent orders */}
+            <div className="card p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-[14px] font-semibold text-app">Recent Orders</h3>
+                <Link to="/orders" className="text-[12px] text-accent-blue hover:underline flex items-center gap-1">View all <ArrowRight size={12} /></Link>
+              </div>
+              <div className="space-y-3">
+                {recentOrders.length === 0 && (
+                  <div className="text-[12.5px] text-faint">No orders yet{selected !== 'all' ? ` on ${PLATFORM_LABELS[selected]}` : ''}.</div>
+                )}
+                {recentOrders.map(o => (
+                  <div key={o.order_id} className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-[12.5px] font-medium text-app truncate">{o.order_id}</div>
+                      <div className="text-[11.5px] text-faint mt-0.5 capitalize">{o.status} · {PLATFORM_LABELS[o.platform as keyof typeof PLATFORM_LABELS] ?? o.platform}</div>
+                    </div>
+                    <span className="text-[12px] text-dim whitespace-nowrap">
+                      {o.total_amount != null ? `₹${o.total_amount.toLocaleString('en-IN')}` : '—'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Low stock alerts */}
+            <div className="card p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-[14px] font-semibold text-app">Stock Alerts</h3>
+                <Link to="/inventory" className="text-[12px] text-accent-blue hover:underline flex items-center gap-1">View all <ArrowRight size={12} /></Link>
+              </div>
+              <div className="space-y-3">
+                {lowStockItems.length === 0 && outOfStockCount === 0 && (
+                  <div className="text-[12.5px] text-faint">All SKUs are healthily stocked.</div>
+                )}
+                {lowStockItems.slice(0, 5).map(item => (
+                  <div key={item.sku} className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="w-1.5 h-1.5 rounded-full bg-accent-amber flex-shrink-0" />
+                      <span className="text-[12.5px] font-mono-app text-app truncate">{item.sku}</span>
+                    </div>
+                    <span className="text-[12px] text-accent-amber font-medium whitespace-nowrap">{item.available_quantity} left</span>
+                  </div>
+                ))}
+                {outOfStockCount > 0 && (
+                  <div className="flex items-center gap-2 pt-2 border-t border-app">
+                    <RotateCcw size={12} className="text-accent-red" />
+                    <span className="text-[12px] text-accent-red">{outOfStockCount} SKU{outOfStockCount === 1 ? '' : 's'} out of stock</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}

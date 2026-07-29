@@ -53,8 +53,27 @@ class ToolManager:
         self._user = user
         self._trace_id = trace_id
 
-    def _build_context(self, session_override: Optional[MarketplaceSession]) -> ToolContext:
+    def _build_context(
+        self,
+        session_override: Optional[MarketplaceSession],
+    ) -> ToolContext:
         session = session_override or self._default_session
+
+        # Deliberately NOT raising here when session is None. Whether a
+        # MarketplaceSession is actually required is a per-tool decision,
+        # not a per-call one: marketplace tools (inventory/listing/orders/
+        # ads/account) already call context.require_session() themselves
+        # (tools_layer/marketplace/_helpers.get_session ->
+        # ToolContext.require_session()) and raise their own clear
+        # ValueError, which BaseTool.run() turns into a normal
+        # ToolResult.fail(...) instead of an unhandled exception.
+        # Non-marketplace tools (e.g. KnowledgeTool) never touch
+        # marketplace_session at all and must be able to run with none
+        # attached — which is the common case for LLM-only requests
+        # (seller coaching, SEO tips, campaign ideas, product copy) that
+        # never named a marketplace. Raising unconditionally here failed
+        # every one of those before the tool itself ever got a chance to
+        # decide it didn't need a session.
         return ToolContext(
             seller_id=self._seller_id,
             platform=session.platform if session else None,

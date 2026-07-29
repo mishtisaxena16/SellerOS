@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     #   CORS_ORIGINS=http://localhost:5173,https://app.selleros.com
     # Defaults cover the two most common React dev-server ports so this
     # works out of the box before a real frontend origin exists yet.
-    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
+    CORS_ORIGINS: str = "http://localhost:8443,http://localhost:5173,http://localhost:3000"
 
     @property
     def cors_origins_list(self) -> list[str]:

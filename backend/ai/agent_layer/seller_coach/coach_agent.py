@@ -15,7 +15,7 @@ own knowledge, with `retrieved_context["knowledge"]` absent and a
 recorded error in state.errors — not fabricated citations. Once the
 Knowledge Layer is pushed and KnowledgeTool is wired to a real
 retriever, this agent needs zero changes; it already asks for
-`context_sections = ["knowledge", "user", "seller", "conversation"]`
+`context_sections = ["user", "seller", "marketplace", "business", "knowledge", "conversation"]`
 and will pick up real results the moment the tool underneath does.
 """
 from __future__ import annotations
@@ -42,7 +42,11 @@ class SellerCoachAgent(BaseAgent):
     allowed_tools: list[str] = ["knowledge"]
 
     prompt_name = "coach"
-    context_sections = ["user", "seller", "marketplace", "knowledge", "conversation"]
+    # "business" adds a computed revenue/orders/stock snapshot (see
+    # ContextBuilder._build_business_section) so advice is grounded in
+    # this seller's actual numbers instead of being generic — the gap
+    # flagged in the earlier checkpoint review.
+    context_sections = ["user", "seller", "marketplace", "business", "knowledge", "conversation"]
 
     default_plan: list[dict[str, Any]] = [
         {"tool": "knowledge", "action": "search", "query": None, "top_k": 5},

@@ -67,6 +67,51 @@ class AuthService:
         }
 
     @staticmethod
+    def update_profile(
+        db: Session,
+        seller: Seller,
+        business_name: str,
+    ) -> Seller:
+        """
+        Update the seller's business name.
+
+        This is the only profile field the backend models today —
+        phone, GSTIN, and a photo aren't stored anywhere yet.
+        """
+
+        seller.business_name = business_name
+
+        db.add(seller)
+        db.commit()
+        db.refresh(seller)
+
+        return seller
+
+    @staticmethod
+    def change_password(
+        db: Session,
+        user: User,
+        current_password: str,
+        new_password: str,
+    ) -> None:
+        """
+        Change the current user's password after verifying the old one.
+        """
+
+        if not verify_password(
+            current_password,
+            user.password_hash,
+        ):
+            raise ValueError(
+                "Current password is incorrect."
+            )
+
+        user.password_hash = hash_password(new_password)
+
+        db.add(user)
+        db.commit()
+
+    @staticmethod
     def login_user(
         db: Session,
         email: str,

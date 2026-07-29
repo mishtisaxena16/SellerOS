@@ -10,9 +10,12 @@ __pycache__/
 *.pyc
 *.pyo
 *.egg-info/
+.pytest_cache/
 
 # SQLite
 *.db
+*.db-shm
+*.db-wal
 
 # Editors
 .vscode/
@@ -30,7 +33,13 @@ chroma_data/
 
 # Temporary files
 structure.txt
+backend.txt
+frontend.txt
 
 #frontend
 node_modules/
 dist/
+
+# Build / Coverage
+.coverage
+htmlcov/

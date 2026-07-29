@@ -1,0 +1,28 @@
+# Minimal single-service compose file for the FastAPI backend.
+# Did not exist before this audit -- see Dockerfile for why.
+#
+# NOT included (out of scope for this audit, requires separate
+# infra decisions): Ollama (knowledge_layer/agent_layer call out to it
+# over the network -- no bundled model server here) and a reverse
+# proxy/TLS termination in front of this service.
+services:
+  backend:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      # Persists selleros.db and the Chroma knowledge-base store across
+      # container restarts/redeploys.
+      - selleros_data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  selleros_data:

@@ -1,83 +1,96 @@
 """
-models.py — SellerOS domain models (synced from marketplace_sdk).
+models.py — the reusable ExecutionPlan/ExecutionStep shape (Phase 6.1, Task 1).
 
-These are the ONLY objects that ever leave the connector layer.
-Agents, the orchestrator, and everything above the SDK work exclusively
-with these — never with raw platform JSON.
+Deliberately plain dataclasses, no LangGraph/pydantic dependency, so this
+module can be imported from anywhere (Supervisor layer today, the future
+multi-agent Executor in a later phase) without dragging in unrelated
+machinery. `backend/schema/chat.py` has the pydantic mirror of this shape
+for the actual HTTP response contract — this module is the internal,
+framework-free source of truth that gets converted to that schema at the
+API boundary.
+
+NOTE ON NAMING: `backend/ai/supervisor_layer/supervisor.py` already
+defines its own small `ExecutionPlan`/`ExecutionStep` classes, used
+internally to seed `SellerOSState["plan"]` for the LangGraph orchestrator.
+That is a different concern (one flat list of intent-steps fed into an
+already-running graph) from what Phase 6.1 asks for (a rich, displayable,
+pre-execution plan naming *which agents* would run and *why*, before
+anything executes). Both are legitimately named `ExecutionPlan` /
+`ExecutionStep` per their own module's spec; they are not the same class
+and are never imported into the same namespace under the same name. See
+supervisor.py's integration comment for how the two are kept apart.
 """
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Any, Optional
-from pydantic import BaseModel, Field
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any, Dict, List
 
 
-class Product(BaseModel):
-    platform: str
-    sku: str
-    listing_id: Optional[str] = None
-    title: str
-    description: Optional[str] = None
-    price: Optional[float] = None
-    mrp: Optional[float] = None
-    currency: str = "INR"
-    category: Optional[str] = None
-    stock_quantity: Optional[int] = None
-    status: Optional[str] = None
-    images: list[str] = Field(default_factory=list)
-    raw: dict[str, Any] = Field(default_factory=dict)
+class ExecutionStatus(str, Enum):
+    """Every status an ExecutionStep can be in.
+
+    Phase 6.1 only ever produces PENDING steps (no agent has executed
+    yet). RUNNING/COMPLETED/FAILED/SKIPPED exist now so the *shape* is
+    already correct for the future multi-agent Executor (a later phase)
+    to update in place, without a breaking schema change.
+    """
+
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    SKIPPED = "skipped"
 
 
-class OrderItem(BaseModel):
-    sku: str
-    quantity: int
-    unit_price: Optional[float] = None
+@dataclass
+class ExecutionStep:
+    """One planned agent invocation.
+
+    agent_id        - stable key, e.g. "analytics" (matches, where one
+                       exists, the key an agent is registered under in
+                       backend/ai/agent_layer/registry/agent_registry.py —
+                       see AgentPlanner's AGENT_CATALOG for the mapping).
+    display_name     - human-readable label for UI/logging, e.g. "Analytics Agent".
+    reason            - short, human-readable explanation of *why* this
+                       agent was included in the plan for this query.
+    status            - one of ExecutionStatus; always "pending" out of
+                       AgentPlanner today.
+    execution_order   - 1-based position this step would run in. Seller
+                       Coach always receives the highest execution_order
+                       in its plan (see AgentPlanner._assign_execution_order).
+    """
+
+    agent_id: str
+    display_name: str
+    reason: str
+    execution_order: int
+    status: str = ExecutionStatus.PENDING.value
+
+    def as_dict(self) -> Dict[str, Any]:
+        return {
+            "agent_id": self.agent_id,
+            "display_name": self.display_name,
+            "reason": self.reason,
+            "status": self.status,
+            "execution_order": self.execution_order,
+        }
 
 
-class Order(BaseModel):
-    platform: str
-    order_id: str
-    status: str
-    items: list[OrderItem] = Field(default_factory=list)
-    total_amount: Optional[float] = None
-    currency: str = "INR"
-    order_date: Optional[datetime] = None
-    customer_state: Optional[str] = None
-    raw: dict[str, Any] = Field(default_factory=dict)
+@dataclass
+class ExecutionPlan:
+    """An ordered collection of ExecutionSteps for a single user query."""
 
+    steps: List[ExecutionStep] = field(default_factory=list)
 
-class Inventory(BaseModel):
-    platform: str
-    sku: str
-    available_quantity: int
-    reserved_quantity: int = 0
-    warehouse: Optional[str] = None
-    raw: dict[str, Any] = Field(default_factory=dict)
+    def as_list(self) -> List[Dict[str, Any]]:
+        """Steps sorted by execution_order, each as a plain dict — this
+        is the exact shape `ChatResponse.execution_plan` expects."""
+        return [step.as_dict() for step in sorted(self.steps, key=lambda s: s.execution_order)]
 
+    @property
+    def agent_ids(self) -> List[str]:
+        return [step.agent_id for step in sorted(self.steps, key=lambda s: s.execution_order)]
 
-class Campaign(BaseModel):
-    platform: str
-    campaign_id: str
-    name: str
-    status: str
-    budget: Optional[float] = None
-    spend: Optional[float] = None
-    raw: dict[str, Any] = Field(default_factory=dict)
-
-
-class Shipment(BaseModel):
-    platform: str
-    shipment_id: str
-    order_id: str
-    status: str
-    carrier: Optional[str] = None
-    tracking_number: Optional[str] = None
-    raw: dict[str, Any] = Field(default_factory=dict)
-
-
-class Account(BaseModel):
-    platform: str
-    seller_id: str
-    seller_name: Optional[str] = None
-    is_active: bool = True
-    raw: dict[str, Any] = Field(default_factory=dict)
+    def is_empty(self) -> bool:
+        return not self.steps

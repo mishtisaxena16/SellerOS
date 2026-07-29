@@ -85,8 +85,39 @@ def fetch_inventory(session, sku: Optional[str] = None, page: int = 1, limit: in
     return _active_impl().fetch_inventory(session, sku=sku, page=page, limit=limit)
 
 
+def fetch_inventory_metrics(session) -> dict[str, Any]:
+    return _active_impl().fetch_inventory_metrics(session)
+
+
 def update_inventory(session, sku: str, quantity: int) -> dict[str, Any]:
     return _active_impl().update_inventory(session, sku, quantity)
+
+def fetch_sales_metrics(
+    session,
+    start_date=None,
+    end_date=None,
+    timeframe="30d",
+):
+    return _active_impl().fetch_sales_metrics(
+        session,
+        start_date=start_date,
+        end_date=end_date,
+        timeframe=timeframe,
+    )
+
+
+def fetch_business_metrics(
+    session,
+    start_date=None,
+    end_date=None,
+    timeframe="30d",
+):
+    return _active_impl().fetch_business_metrics(
+        session,
+        start_date=start_date,
+        end_date=end_date,
+        timeframe=timeframe,
+    )
 
 
 def verify_connection(session) -> dict[str, Any]:
@@ -95,3 +126,5 @@ def verify_connection(session) -> dict[str, Any]:
     # the day you're checking whether the switch-over actually happened.
     result.setdefault("mode", active_mode())
     return result
+
+

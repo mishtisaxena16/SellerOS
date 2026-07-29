@@ -64,6 +64,31 @@ class PromptContext:
         return blocks
 
 
+# Matches the frontend's LOW_STOCK_THRESHOLD and CANCELLED_STATUSES
+# (Dashboard.tsx / BusinessIntelligence.tsx) so Seller Coach's notion
+# of "low stock" and "cancelled" agrees with what the seller sees on
+# screen — one seller asking the coach a question shouldn't get a
+# different definition of "low stock" than the dashboard just showed them.
+_LOW_STOCK_THRESHOLD = 20
+_CANCELLED_STATUSES = {"cancelled", "canceled", "returned", "rejected"}
+
+
+def _field(obj: Any, key: str, default: Any = None) -> Any:
+    """
+    Sales/business metrics come back from marketplace_connector.py as
+    plain dicts (no Pydantic normalization step exists for them,
+    unlike Order/Inventory) — while orders/inventory rows are real
+    Pydantic objects. `getattr(a_dict, key, default)` silently returns
+    `default` every time instead of raising, which is exactly the kind
+    of quiet wrong-answer bug this file's own docstring warns against.
+    This checks dicts with `.get()` and falls back to `getattr()` for
+    everything else, so the same call site works for both shapes.
+    """
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    return getattr(obj, key, default)
+
+
 class ContextBuilder:
     def __init__(self, tool_manager: Any) -> None:
         # Typed as Any to avoid a hard import cycle with ToolManager for
@@ -87,7 +112,7 @@ class ContextBuilder:
         """
         wanted = set(include) if include is not None else {
             "user", "marketplace", "seller", "inventory", "knowledge",
-            "conversation", "business_rules",
+            "conversation", "business_rules", "business",
         }
         ctx = PromptContext()
 
@@ -115,6 +140,9 @@ class ContextBuilder:
                 note=result.message if not result.success else "",
             )
 
+        if "business" in wanted:
+            ctx.sections["business"] = await self._build_business_section(session, ctx)
+
         if "knowledge" in wanted:
             result = await self._tool_manager.call("knowledge", query=user_query)
             ctx.sections["knowledge"] = ContextSection(
@@ -135,3 +163,84 @@ class ContextBuilder:
             )
 
         return ctx
+
+    async def _build_business_section(
+        self, session: Optional[MarketplaceSession], ctx: PromptContext,
+    ) -> ContextSection:
+        """
+        A short, computed snapshot of the seller's business — revenue,
+        pending orders, low-stock/out-of-stock counts, cancellation
+        rate — for agents (Seller Coach today) that need situational
+        awareness without paying for the full raw inventory/orders
+        payload in every prompt. Mirrors exactly the numbers already
+        shown on Dashboard/Business Intelligence, computed the same
+        way, so the coach's advice can't disagree with what the seller
+        is looking at on screen.
+
+        Best-effort by design: any one of orders/analytics/inventory
+        failing (e.g. a fetcher not yet wired for this marketplace)
+        just drops that line from the snapshot rather than failing the
+        whole section — matching this file's existing pattern of
+        marking gaps instead of guessing or crashing.
+        """
+        if session is None:
+            return ContextSection(
+                content=None, available=False,
+                note="No MarketplaceSession attached for this run.",
+            )
+
+        lines: list[str] = [f"Platform: {session.platform}"]
+
+        sales_result = await self._tool_manager.call("analytics", session=session, action="get_sales_metrics")
+        if sales_result.success and sales_result.data:
+            sm = sales_result.data
+            revenue = _field(sm, "total_revenue")
+            timeframe = _field(sm, "timeframe", "recent period")
+            if revenue is not None:
+                lines.append(f"Revenue ({timeframe}): ₹{revenue:,.0f}")
+
+        business_result = await self._tool_manager.call("analytics", session=session, action="get_business_metrics")
+        pending_from_metrics: Optional[int] = None
+        if business_result.success and business_result.data:
+            bm = business_result.data
+            pending_from_metrics = _field(bm, "pending_orders")
+            shipped = _field(bm, "shipped_orders")
+            if pending_from_metrics is not None:
+                lines.append(f"Pending orders: {pending_from_metrics}")
+            if shipped is not None:
+                lines.append(f"Shipped orders: {shipped}")
+
+        orders_result = await self._tool_manager.call("orders", session=session, action="get_orders")
+        if orders_result.success and orders_result.data:
+            orders = orders_result.data
+            if pending_from_metrics is None:
+                pending = sum(1 for o in orders if getattr(o, "status", "").lower() in ("pending", "unshipped"))
+                lines.append(f"Pending orders: {pending}")
+            cancelled = sum(1 for o in orders if getattr(o, "status", "").lower() in _CANCELLED_STATUSES)
+            if orders:
+                lines.append(f"Cancellation/return rate: {cancelled / len(orders) * 100:.1f}% (of {len(orders)} synced orders)")
+
+        # Reuse the "inventory" section's fetch if that section was
+        # also requested this call, instead of hitting the tool twice.
+        inventory_section = ctx.sections.get("inventory")
+        if inventory_section is not None and inventory_section.available:
+            inventory_items = inventory_section.content
+        else:
+            inv_result = await self._tool_manager.call("inventory", session=session, action="get_inventory")
+            inventory_items = inv_result.data if inv_result.success else None
+
+        if inventory_items:
+            low_stock = sum(1 for i in inventory_items if 0 < getattr(i, "available_quantity", 0) < _LOW_STOCK_THRESHOLD)
+            out_of_stock = sum(1 for i in inventory_items if getattr(i, "available_quantity", None) == 0)
+            if low_stock:
+                lines.append(f"Low stock SKUs (<{_LOW_STOCK_THRESHOLD} units): {low_stock}")
+            if out_of_stock:
+                lines.append(f"Out of stock SKUs: {out_of_stock}")
+
+        if len(lines) <= 1:
+            return ContextSection(
+                content=None, available=False,
+                note="Business metrics not available for this marketplace yet.",
+            )
+
+        return ContextSection(content="\n".join(lines), available=True)

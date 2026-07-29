@@ -63,6 +63,15 @@ from typing import Any, Dict, List, Optional
 import backend.ai.orchestrator_layer.orchestrator as orchestrator
 from backend.ai.orchestrator_layer.orchestrator import router as intent_router  # the existing IntentRouter, reused rather than duplicated
 
+# Phase 6.1 — Agent Execution Planner. Purely descriptive/pre-execution:
+# `agent_planner.build_plan()` never calls an agent and never touches
+# `orchestrator.run_workflow()`. Aliased on import so its `ExecutionPlan`/
+# `ExecutionStep` never collide with this module's own same-named classes
+# below (see planner_layer/models.py's module docstring for why both
+# legitimately exist).
+from backend.ai.planner_layer.agent_planner import agent_planner
+from backend.ai.planner_layer.models import ExecutionPlan as AgentExecutionPlan
+
 
 # =============================================================================
 # Execution Plan — what the Supervisor produces, what the Orchestrator consumes
@@ -200,6 +209,11 @@ class SupervisorResult:
     guardrail_findings: List[str] = field(default_factory=list)
     unimplemented_intents: List[str] = field(default_factory=list)
     raw_state: Dict[str, Any] = field(default_factory=dict)
+    # Phase 6.1: the pre-execution Agent Execution Plan, as plain dicts
+    # (ExecutionPlan.as_list() shape — see planner_layer/models.py).
+    # Additive only — every field above is unchanged, so any existing
+    # caller that ignores this key keeps working exactly as before.
+    agent_execution_plan: List[Dict[str, Any]] = field(default_factory=list)
 
     def as_dict(self) -> Dict[str, Any]:
         return {
@@ -210,6 +224,7 @@ class SupervisorResult:
             "thread_id": self.thread_id,
             "guardrail_findings": self.guardrail_findings,
             "unimplemented_intents": self.unimplemented_intents,
+            "agent_execution_plan": self.agent_execution_plan,
         }
 
 
@@ -236,7 +251,13 @@ class ApprovalManager:
 
 class ResponseSynthesizer:
     @staticmethod
-    def from_state(state: Dict[str, Any], plan: ExecutionPlan, thread_id: Optional[str], unimplemented: List[str]) -> SupervisorResult:
+    def from_state(
+        state: Dict[str, Any],
+        plan: ExecutionPlan,
+        thread_id: Optional[str],
+        unimplemented: List[str],
+        agent_execution_plan: Optional[List[Dict[str, Any]]] = None,
+    ) -> SupervisorResult:
         return SupervisorResult(
             response=state.get("final_response") or "",
             intent=plan.intents,
@@ -246,6 +267,7 @@ class ResponseSynthesizer:
             guardrail_findings=state.get("guardrail_findings", []),
             unimplemented_intents=unimplemented,
             raw_state=state,
+            agent_execution_plan=agent_execution_plan or [],
         )
 
 
@@ -258,6 +280,11 @@ class Supervisor:
         self._analyzer = IntentAnalyzer()
         self._decomposer = TaskDecomposer(self._analyzer)
         self._memory = MemoryCoordinator()
+        # Phase 6.1 — independent of _decomposer on purpose (see
+        # planner_layer/agent_planner.py's module docstring): this is a
+        # separate, purely descriptive routing table, not a second copy
+        # of the execution-facing TaskDecomposer/orchestrator routing.
+        self._agent_planner = agent_planner
 
     async def handle(
         self,
@@ -295,6 +322,13 @@ class Supervisor:
         plan = self._decomposer.build_plan(query)
         unimplemented = self._decomposer.unimplemented_intents(plan)
 
+        # Phase 6.1 — Agent Execution Planner. Generated up front, next
+        # to the existing (unrelated) TaskDecomposer plan, and attached
+        # to the response below. This does not feed into
+        # `orchestrator.run_workflow()` and does not change what that
+        # call below does or returns — see planner_layer/agent_planner.py.
+        agent_execution_plan: AgentExecutionPlan = self._agent_planner.build_plan(query)
+
         thread_id = session_id or seller_id
         state = await orchestrator.run_workflow(
             query=query,
@@ -305,7 +339,9 @@ class Supervisor:
             thread_id=thread_id,
         )
 
-        result = ResponseSynthesizer.from_state(state, plan, thread_id, unimplemented)
+        result = ResponseSynthesizer.from_state(
+            state, plan, thread_id, unimplemented, agent_execution_plan.as_list()
+        )
         self._memory.record_assistant_message(session_id, result.response)
         return result.as_dict()
 

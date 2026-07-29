@@ -125,27 +125,35 @@ def _validate_platform(platform: str) -> None:
         )
 
 
-def _dispatch(registry: dict[str, Callable[..., Any]], platform: str, operation: str, *args: Any, **kwargs: Any) -> Any:
+def _dispatch(
+    registry: dict[str, Callable[..., Any]],
+    platform: str,
+    operation: str,
+    *args: Any,
+    **kwargs: Any,
+) -> Any:
     """
-    Single choke point for every registry call: validates the platform is
-    wired up for this operation, then runs it and translates unexpected
-    failures into ConnectorError instead of leaking a raw KeyError or a
-    connector-specific exception type (requests.HTTPError, Playwright's
-    TimeoutError, etc.) up to the agent layer.
+    Single choke point for every registry call.
 
-    Our own ConnectorError subclasses (AuthenticationError, RateLimitError,
-    MarketplaceUnavailableError, ...) are re-raised as-is so callers can
-    still branch on them.
+    Validates the platform, verifies the requested operation is registered,
+    and translates unexpected connector exceptions into ConnectorError.
     """
+
+    _validate_platform(platform)
+
     fn = registry.get(platform)
+
     if fn is None:
         raise NotImplementedError(
             f"'{operation}' is not implemented for platform '{platform}' yet."
         )
+
     try:
         return fn(*args, **kwargs)
+
     except ConnectorError:
         raise
+
     except Exception as exc:
         raise ConnectorError(
             f"'{operation}' failed for platform '{platform}': {exc}"
@@ -186,7 +194,9 @@ ORDER_FETCHERS: dict[str, Callable[..., list[dict[str, Any]]]] = {
     "flipkart": flipkart_connector.fetch_orders,
     "amazon": amazon_connector.fetch_orders,
 }
-SINGLE_ORDER_FETCHERS: dict[str, Callable[..., dict[str, Any]]] = {}
+SINGLE_ORDER_FETCHERS: dict[str, Callable[..., dict[str, Any]]] = {
+    "amazon": amazon_connector.fetch_order,
+}
 SHIPMENT_FETCHERS: dict[str, Callable[..., list[dict[str, Any]]]] = {
     "amazon": amazon_connector.fetch_shipments,
     "flipkart": flipkart_connector.fetch_shipments,
@@ -197,16 +207,92 @@ CAMPAIGN_FETCHERS: dict[str, Callable[..., list[dict[str, Any]]]] = {}
 CAMPAIGN_CREATORS: dict[str, Callable[..., CampaignResponse]] = {}
 CAMPAIGN_DELETERS: dict[str, Callable[..., CampaignResponse]] = {}
 
+def _meesho_sales_metrics_from_orders(session: MarketplaceSession, start_date=None, end_date=None, timeframe: str = "30d") -> dict[str, Any]:
+    """
+    BLOCKER FIX (not a Flipkart change): meesho_connector.py defines no
+    fetch_sales_metrics at all, which crashed marketplace_connector.py
+    at import time for every platform, Flipkart included, since this
+    module's registries are built at import time. Derives revenue from
+    Meesho's own already-working get_orders() instead of adding a new,
+    unverified Playwright scrape -- same approach already used for
+    Flipkart/Meesho in the prior checkpoint's marketplace_connector.py.
+    """
+    orders = get_orders(session, start_date=start_date, end_date=end_date, limit=1000)
+    total_revenue = sum(o.total_amount or 0 for o in orders)
+    return {
+        "platform": session.platform,
+        "timeframe": timeframe,
+        "total_orders": len(orders),
+        "total_revenue": total_revenue,
+        "average_order_value": round(total_revenue / len(orders), 2) if orders else 0.0,
+        "currency": orders[0].currency if orders else "INR",
+        "note": "Computed from live meesho orders data -- no analytics/reports panel connector exists for this platform yet.",
+    }
+
+
+def _meesho_business_metrics_from_orders(session: MarketplaceSession, start_date=None, end_date=None, timeframe: str = "30d") -> dict[str, Any]:
+    orders = get_orders(session, start_date=start_date, end_date=end_date, limit=1000)
+    shipped = sum(1 for o in orders if o.status.lower() == "shipped")
+    pending = sum(1 for o in orders if o.status.lower() in ("pending", "unshipped"))
+    return {
+        "platform": session.platform,
+        "timeframe": timeframe,
+        "shipped_orders": shipped,
+        "pending_orders": pending,
+        "currency": "INR",
+        "note": "Computed from live meesho orders data -- no analytics/reports panel connector exists for this platform yet.",
+    }
+
+
+def _meesho_inventory_metrics_from_inventory(session: MarketplaceSession) -> dict[str, Any]:
+    """
+    BLOCKER FIX (Phase 2): meesho_connector.py defines no
+    fetch_inventory_metrics, and neither does amazon_connector.py --
+    only Flipkart's Playwright/API connectors implement it, and even
+    marketplace_connector.py itself had no registry or public facade
+    function for it at all (get_inventory_metrics() didn't exist for
+    ANY platform). Rather than guess at Meesho panel selectors for an
+    inventory-summary widget (which would violate the "never invent
+    selectors" rule), this derives the numbers from Meesho's own
+    already-working get_inventory() -- same approach already used above
+    for _meesho_sales_metrics_from_orders / _meesho_business_metrics_from_orders.
+    """
+    inventory = get_inventory(session, limit=1000)
+    return {
+        "platform": session.platform,
+        "total_skus": len(inventory),
+        "total_available_quantity": sum(i.available_quantity or 0 for i in inventory),
+        "out_of_stock_skus": sum(1 for i in inventory if not i.available_quantity),
+        "note": "Computed from live meesho inventory data -- no inventory-summary panel connector exists for this platform yet.",
+    }
+
+
+INVENTORY_METRICS_FETCHERS: dict[str, Callable[..., dict[str, Any]]] = {
+    "flipkart": flipkart_connector.fetch_inventory_metrics,
+    "meesho": _meesho_inventory_metrics_from_inventory,
+    # amazon intentionally omitted: amazon_connector.py has no
+    # fetch_inventory_metrics implementation. _dispatch() already
+    # reports this as NotImplementedError naming the platform + op,
+    # same as every other genuinely-unimplemented registry gap in this
+    # file -- no new behaviour invented for Amazon.
+}
+
 SALES_METRICS_FETCHERS: dict[str, Callable[..., dict[str, Any]]] = {
     "amazon": amazon_connector.fetch_sales_metrics,
+    "flipkart": flipkart_connector.fetch_sales_metrics,
+    "meesho": _meesho_sales_metrics_from_orders,
 }
+
 BUSINESS_METRICS_FETCHERS: dict[str, Callable[..., dict[str, Any]]] = {
     "amazon": amazon_connector.fetch_business_metrics,
+    "flipkart": flipkart_connector.fetch_business_metrics,
+    "meesho": _meesho_business_metrics_from_orders,
 }
 
 CONNECTION_VERIFIERS: dict[str, Callable[..., dict[str, Any]]] = {
-    "meesho": meesho_connector.verify_connection,
+    "amazon": amazon_connector.verify_connection,
     "flipkart": flipkart_connector.verify_connection,
+    "meesho": meesho_connector.verify_connection,
 }
 ACCOUNT_FETCHERS: dict[str, Callable[..., dict[str, Any]]] = {}
 
@@ -225,28 +311,23 @@ def get_products(
     limit: int = 50,
     category: Optional[str] = None
 ) -> list[Product]:
-    _validate_platform(session.platform)
     raw_products = _dispatch(PRODUCT_FETCHERS, session.platform, "get_products", session, page=page, limit=limit, category=category)
     return [normalize_product(session.platform, raw) for raw in raw_products]
 
 
 def create_listing(session: MarketplaceSession, product_data: dict[str, Any]) -> ListingResponse:
-    _validate_platform(session.platform)
     return _dispatch(LISTING_CREATORS, session.platform, "create_listing", session, product_data)
 
 
 def publish_listing(session: MarketplaceSession, listing_id: str) -> ListingResponse:
-    _validate_platform(session.platform)
     return _dispatch(LISTING_PUBLISHERS, session.platform, "publish_listing", session, listing_id)
 
 
 def update_listing(session: MarketplaceSession, listing_id: str, update_data: dict[str, Any]) -> ListingResponse:
-    _validate_platform(session.platform)
     return _dispatch(LISTING_UPDATERS, session.platform, "update_listing", session, listing_id, update_data)
 
 
 def delete_listing(session: MarketplaceSession, listing_id: str) -> ListingResponse:
-    _validate_platform(session.platform)
     return _dispatch(LISTING_DELETERS, session.platform, "delete_listing", session, listing_id)
 
 
@@ -260,13 +341,11 @@ def get_inventory(
     page: int = 1,
     limit: int = 50
 ) -> list[Inventory]:
-    _validate_platform(session.platform)
     raw_inventory = _dispatch(INVENTORY_FETCHERS, session.platform, "get_inventory", session, sku=sku, page=page, limit=limit)
     return [normalize_inventory(session.platform, raw) for raw in raw_inventory]
 
 
 def update_inventory(session: MarketplaceSession, sku: str, quantity: int) -> InventoryUpdateResponse:
-    _validate_platform(session.platform)
     result = _dispatch(INVENTORY_UPDATERS, session.platform, "update_inventory", session, sku, quantity)
     return InventoryUpdateResponse(**result)
 
@@ -283,7 +362,6 @@ def get_orders(
     page: int = 1,
     limit: int = 50
 ) -> list[Order]:
-    _validate_platform(session.platform)
     raw_orders = _dispatch(
         ORDER_FETCHERS, session.platform, "get_orders", session,
         status=status, start_date=start_date, end_date=end_date, page=page, limit=limit,
@@ -292,7 +370,6 @@ def get_orders(
 
 
 def get_order(session: MarketplaceSession, order_id: str) -> Order:
-    _validate_platform(session.platform)
     raw_order = _dispatch(SINGLE_ORDER_FETCHERS, session.platform, "get_order", session, order_id)
     return normalize_order(session.platform, raw_order)
 
@@ -304,7 +381,6 @@ def get_shipments(
     page: int = 1,
     limit: int = 50
 ) -> list[Shipment]:
-    _validate_platform(session.platform)
     raw_shipments = _dispatch(
         SHIPMENT_FETCHERS, session.platform, "get_shipments", session,
         order_id=order_id, status=status, page=page, limit=limit,
@@ -322,18 +398,15 @@ def get_campaigns(
     page: int = 1,
     limit: int = 50
 ) -> list[Campaign]:
-    _validate_platform(session.platform)
     raw_campaigns = _dispatch(CAMPAIGN_FETCHERS, session.platform, "get_campaigns", session, status=status, page=page, limit=limit)
     return [normalize_campaign(session.platform, raw) for raw in raw_campaigns]
 
 
 def create_campaign(session: MarketplaceSession, campaign_data: dict[str, Any]) -> CampaignResponse:
-    _validate_platform(session.platform)
     return _dispatch(CAMPAIGN_CREATORS, session.platform, "create_campaign", session, campaign_data)
 
 
 def delete_campaign(session: MarketplaceSession, campaign_id: str) -> CampaignResponse:
-    _validate_platform(session.platform)
     return _dispatch(CAMPAIGN_DELETERS, session.platform, "delete_campaign", session, campaign_id)
 
 
@@ -347,7 +420,6 @@ def get_sales_metrics(
     end_date: Optional[datetime] = None,
     timeframe: str = "30d"
 ) -> dict[str, Any]:
-    _validate_platform(session.platform)
     return _dispatch(SALES_METRICS_FETCHERS, session.platform, "get_sales_metrics", session, start_date=start_date, end_date=end_date, timeframe=timeframe)
 
 
@@ -357,8 +429,11 @@ def get_business_metrics(
     end_date: Optional[datetime] = None,
     timeframe: str = "30d"
 ) -> dict[str, Any]:
-    _validate_platform(session.platform)
     return _dispatch(BUSINESS_METRICS_FETCHERS, session.platform, "get_business_metrics", session, start_date=start_date, end_date=end_date, timeframe=timeframe)
+
+
+def get_inventory_metrics(session: MarketplaceSession) -> dict[str, Any]:
+    return _dispatch(INVENTORY_METRICS_FETCHERS, session.platform, "get_inventory_metrics", session)
 
 
 # ===========================================================================
@@ -366,12 +441,10 @@ def get_business_metrics(
 # ===========================================================================
 
 def verify_connection(session: MarketplaceSession) -> ConnectionStatus:
-    _validate_platform(session.platform)
     result = _dispatch(CONNECTION_VERIFIERS, session.platform, "verify_connection", session)
     return ConnectionStatus(**result)
 
 
 def get_account(session: MarketplaceSession) -> Account:
-    _validate_platform(session.platform)
     raw_account = _dispatch(ACCOUNT_FETCHERS, session.platform, "get_account", session)
     return normalize_account(session.platform, raw_account)

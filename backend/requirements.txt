@@ -23,6 +23,9 @@ uvicorn[standard]>=0.29
 sqlalchemy>=2.0
 pydantic-settings>=2.2
 python-jose[cryptography]>=3.3
+cryptography>=42.0  # used directly by backend/database/crypto.py (Fernet) for
+                     # credential-at-rest encryption -- previously only an
+                     # indirect dep via python-jose, pinned explicitly now
 passlib[bcrypt]>=1.7
 bcrypt==4.0.1  # passlib 1.7.4 does not support bcrypt>=4.1's new backend API -- pin explicitly
 

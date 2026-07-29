@@ -233,3 +233,32 @@ def verify_connection(session) -> dict[str, Any]:
             "is_connected": False,
             "message": str(exc),
         }
+
+
+# Not part of this scaffold's original contract (see module docstring) --
+# flipkart_playwright_connector.py added these three later, and
+# flipkart_connector.py's facade calls whichever implementation is
+# active without checking first. Left unimplemented here (no verified
+# Flipkart Seller API endpoint for them -- same reason every endpoint
+# above is a TODO), but defined so a real Flipkart-API-credentialed
+# deployment gets a clear, diagnosable NotImplementedError instead of
+# an AttributeError buried in the facade.
+def fetch_sales_metrics(session, start_date=None, end_date=None, timeframe: str = "30d") -> dict[str, Any]:
+    raise NotImplementedError(
+        "flipkart_api_connector.fetch_sales_metrics: no verified Flipkart Seller API "
+        "endpoint for sales metrics yet -- TODO once API docs are available."
+    )
+
+
+def fetch_business_metrics(session, start_date=None, end_date=None, timeframe: str = "30d") -> dict[str, Any]:
+    raise NotImplementedError(
+        "flipkart_api_connector.fetch_business_metrics: no verified Flipkart Seller API "
+        "endpoint for business metrics yet -- TODO once API docs are available."
+    )
+
+
+def fetch_inventory_metrics(session) -> dict[str, Any]:
+    raise NotImplementedError(
+        "flipkart_api_connector.fetch_inventory_metrics: no verified Flipkart Seller API "
+        "endpoint for inventory metrics yet -- TODO once API docs are available."
+    )

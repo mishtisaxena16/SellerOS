@@ -56,30 +56,84 @@ def _tool_manager_for(seller_id: int, platform: str) -> ToolManager:
     session = get_marketplace_session(str(seller_id), platform)
     return ToolManager(_tool_registry, seller_id=str(seller_id), marketplace_session=session)
 
+def _resolve_tool_manager(
+    db: Session,
+    seller_id: int,
+    platform: Optional[str],
+) -> tuple[str, ToolManager]:
+    """
+    Resolve the marketplace platform and construct the corresponding
+    ToolManager for the current request.
+    """
+    resolved_platform = _resolve_platform(db, seller_id, platform)
+    return resolved_platform, _tool_manager_for(seller_id, resolved_platform)
 
-async def get_inventory(db: Session, seller_id: int, platform: Optional[str] = None) -> dict[str, Any]:
-    platform = _resolve_platform(db, seller_id, platform)
-    tm = _tool_manager_for(seller_id, platform)
+
+async def get_inventory(
+    db: Session,
+    seller_id: int,
+    platform: Optional[str] = None,
+) -> dict[str, Any]:
+    platform, tm = _resolve_tool_manager(db, seller_id, platform)
+
     result = await tm.call("inventory", action="get_inventory")
+
     if not result.success:
-        return {"platform": platform, "success": False, "message": result.message, "items": []}
-    return {"platform": platform, "success": True, "items": result.data}
+        return {
+            "platform": platform,
+            "success": False,
+            "message": result.message,
+            "items": [],
+        }
+
+    return {
+        "platform": platform,
+        "success": True,
+        "items": result.data,
+    }
 
 
-async def get_orders(db: Session, seller_id: int, platform: Optional[str] = None) -> dict[str, Any]:
-    platform = _resolve_platform(db, seller_id, platform)
-    tm = _tool_manager_for(seller_id, platform)
+async def get_orders(
+    db: Session,
+    seller_id: int,
+    platform: Optional[str] = None,
+) -> dict[str, Any]:
+    platform, tm = _resolve_tool_manager(db, seller_id, platform)
+
     result = await tm.call("orders", action="get_orders")
+
     if not result.success:
-        return {"platform": platform, "success": False, "message": result.message, "orders": []}
-    return {"platform": platform, "success": True, "orders": result.data}
+        return {
+            "platform": platform,
+            "success": False,
+            "message": result.message,
+            "orders": [],
+        }
+
+    return {
+        "platform": platform,
+        "success": True,
+        "orders": result.data,
+    }
 
 
-async def get_analytics(db: Session, seller_id: int, platform: Optional[str] = None) -> dict[str, Any]:
-    platform = _resolve_platform(db, seller_id, platform)
-    tm = _tool_manager_for(seller_id, platform)
-    sales_result = await tm.call("analytics", action="get_sales_metrics")
-    business_result = await tm.call("analytics", action="get_business_metrics")
+async def get_analytics(
+    db: Session,
+    seller_id: int,
+    platform: Optional[str] = None,
+) -> dict[str, Any]:
+    platform, tm = _resolve_tool_manager(db, seller_id, platform)
+
+    sales_result = await tm.call(
+        "analytics",
+        action="get_sales_metrics",
+    )
+
+    business_result = await tm.call(
+        "analytics",
+        action="get_business_metrics",
+    )
+
     return {
         "platform": platform,
         "sales_metrics": sales_result.data if sales_result.success else None,
@@ -104,9 +158,7 @@ async def get_dashboard_summary(db: Session, seller_id: int) -> dict[str, Any]:
             "message": "No marketplace connected yet — connect one to see real numbers.",
         }
 
-    platform = _resolve_platform(db, seller_id, None)
-    tm = _tool_manager_for(seller_id, platform)
-
+    platform, tm = _resolve_tool_manager(db, seller_id, None)
     inventory_result = await tm.call("inventory", action="get_inventory")
     orders_result = await tm.call("orders", action="get_orders")
 

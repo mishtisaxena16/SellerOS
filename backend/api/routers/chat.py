@@ -48,6 +48,10 @@ async def chat(
             thread_id=result["thread_id"],
             guardrail_findings=result["guardrail_findings"],
             unimplemented_intents=result["unimplemented_intents"],
+            # Phase 6.1 — result["agent_execution_plan"] is always present
+            # (defaults to [] in SupervisorResult), so this is safe for
+            # both this endpoint and /approve below.
+            execution_plan=result.get("agent_execution_plan", []),
         )
 
     except Exception as e:
@@ -90,6 +94,10 @@ async def approve(
             thread_id=result["thread_id"],
             guardrail_findings=result["guardrail_findings"],
             unimplemented_intents=result["unimplemented_intents"],
+            # Phase 6.1 — no original query is available on resume, so
+            # there's nothing to re-plan from; empty is the correct,
+            # honest answer rather than guessing.
+            execution_plan=result.get("agent_execution_plan", []),
         )
 
     except Exception as e:

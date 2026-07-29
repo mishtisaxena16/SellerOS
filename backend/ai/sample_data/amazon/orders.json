@@ -1,20 +1,72 @@
 [
   {
-    "AmazonOrderId": "402-1234567-8901234",
-    "OrderStatus": "Shipped",
-    "OrderTotal": {"Amount": 799.0, "CurrencyCode": "INR"},
-    "PurchaseDate": "2026-07-18T10:32:00+00:00",
-    "items": [
-      {"sku": "AMZ-SKU-001", "quantity": 1, "unit_price": 799.0}
+    "orderId": "402-1234567-8901234",
+    "createdTime": "2026-07-18T10:32:00Z",
+    "lastUpdatedTime": "2026-07-19T06:15:00Z",
+    "salesChannel": {
+      "marketplaceId": "A21TJRUUN4KGV",
+      "marketplaceName": "Amazon.in"
+    },
+    "fulfillment": {
+      "fulfillmentStatus": "SHIPPED",
+      "fulfilledBy": "MERCHANT",
+      "fulfillmentServiceLevel": "Standard"
+    },
+    "proceeds": {
+      "grandTotal": {"amount": "799.00", "currencyCode": "INR"}
+    },
+    "programs": ["PRIME"],
+    "orderItems": [
+      {
+        "orderItemId": "90111222333441",
+        "quantityOrdered": 1,
+        "product": {
+          "sellerSku": "AMZ-SKU-001",
+          "asin": "B0EXAMPLE01",
+          "title": "SellerOS Sample Product 1"
+        },
+        "proceeds": {
+          "proceedsTotal": {"amount": "799.00", "currencyCode": "INR"},
+          "breakdowns": [
+            {"type": "ITEM", "subtotal": {"amount": "799.00", "currencyCode": "INR"}}
+          ]
+        }
+      }
     ]
   },
   {
-    "AmazonOrderId": "402-2345678-9012345",
-    "OrderStatus": "Unshipped",
-    "OrderTotal": {"Amount": 2998.0, "CurrencyCode": "INR"},
-    "PurchaseDate": "2026-07-22T15:04:00+00:00",
-    "items": [
-      {"sku": "AMZ-SKU-002", "quantity": 2, "unit_price": 1499.0}
+    "orderId": "402-2345678-9012345",
+    "createdTime": "2026-07-22T15:04:00Z",
+    "lastUpdatedTime": "2026-07-22T15:04:00Z",
+    "salesChannel": {
+      "marketplaceId": "A21TJRUUN4KGV",
+      "marketplaceName": "Amazon.in"
+    },
+    "fulfillment": {
+      "fulfillmentStatus": "UNSHIPPED",
+      "fulfilledBy": "MERCHANT",
+      "fulfillmentServiceLevel": "Expedited"
+    },
+    "proceeds": {
+      "grandTotal": {"amount": "2998.00", "currencyCode": "INR"}
+    },
+    "programs": [],
+    "orderItems": [
+      {
+        "orderItemId": "90111222333442",
+        "quantityOrdered": 2,
+        "product": {
+          "sellerSku": "AMZ-SKU-002",
+          "asin": "B0EXAMPLE02",
+          "title": "SellerOS Sample Product 2"
+        },
+        "proceeds": {
+          "proceedsTotal": {"amount": "2998.00", "currencyCode": "INR"},
+          "breakdowns": [
+            {"type": "ITEM", "subtotal": {"amount": "1499.00", "currencyCode": "INR"}}
+          ]
+        }
+      }
     ]
   }
 ]

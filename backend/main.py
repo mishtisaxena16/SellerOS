@@ -5,6 +5,7 @@ from sqlalchemy import text
 
 from backend.config.logging import configure_logging, get_logger
 from backend.config.settings import settings, assert_secret_key_is_safe
+print("CORS LIST:", settings.cors_origins_list)
 from backend.api.routers.auth import router as auth_router
 from backend.database.init_db import init_db
 from backend.database.session import SessionLocal
