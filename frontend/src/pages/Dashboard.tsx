@@ -1,245 +1,626 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
-  AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, PieChart, Pie, Cell
-} from 'recharts'
-import {
-  TrendingUp, TrendingDown, Package, ShoppingBag, Star,
-  RotateCcw, Sparkles, ArrowRight, AlertCircle, CheckCircle
+  TrendingUp, Package, ShoppingBag, RotateCcw, Sparkles, ArrowRight,
+  AlertCircle, PlugZap, Wand2, MessageCircle, Loader2, Clock, Check, Circle,
+  Store, Boxes, Activity, Award, Lightbulb, XCircle, CheckCircle2, Truck,
 } from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
+import { usePlatform, PLATFORM_LABELS } from '../context/PlatformContext'
+import { getDashboardSummary, type DashboardSummary } from '../api/dashboard'
+import { getInventory, type InventoryItem } from '../api/inventory'
+import { getOrders, type OrderRecord } from '../api/orders'
+import { ApiError } from '../api/client'
+import { useAnalyticsData } from '../hooks/useAnalyticsData'
+import TrendChartCard from '../components/TrendChartCard'
 
-const revenueData = [
-  { day: 'Jul 1', amazon: 28400, flipkart: 16200, meesho: 9800 },
-  { day: 'Jul 5', amazon: 31200, flipkart: 18400, meesho: 11200 },
-  { day: 'Jul 10', amazon: 29800, flipkart: 17100, meesho: 10400 },
-  { day: 'Jul 15', amazon: 35600, flipkart: 21300, meesho: 13600 },
-  { day: 'Jul 20', amazon: 38900, flipkart: 23800, meesho: 15100 },
-  { day: 'Jul 22', amazon: 41200, flipkart: 25400, meesho: 16800 },
-]
+const LOW_STOCK_THRESHOLD = 20
 
-const ordersData = [
-  { month: 'Feb', orders: 1240 },
-  { month: 'Mar', orders: 1480 },
-  { month: 'Apr', orders: 1620 },
-  { month: 'May', orders: 1890 },
-  { month: 'Jun', orders: 2140 },
-  { month: 'Jul', orders: 2380 },
-]
+// Same status vocabulary as Business Intelligence's cancellation-rate calc —
+// kept in sync deliberately so "cancelled" means the same thing on both pages.
+const CANCELLED_STATUSES = new Set(['cancelled', 'canceled', 'returned', 'rejected'])
+const PENDING_STATUSES = new Set(['pending', 'unshipped', 'processing'])
 
-const categoryData = [
-  { name: 'Kitchen', value: 38, color: '#5B5BD6' },
-  { name: 'Home Decor', value: 27, color: '#8B5CF6' },
-  { name: 'Garden', value: 18, color: '#06B6D4' },
-  { name: 'Storage', value: 17, color: '#10B981' },
-]
-
-const recentActivity = [
-  { type: 'order', text: 'New order #ORD-4891 on Amazon', sub: 'Bamboo Spice Rack × 2 — ₹1,298', time: '2m ago', color: 'text-emerald-500' },
-  { type: 'alert', text: 'Low stock alert: Wooden Serving Board', sub: '6 units remaining · Est. 5 days', time: '18m ago', color: 'text-amber-500' },
-  { type: 'order', text: 'New order #ORD-4890 on Flipkart', sub: 'Kitchen Tool Set × 1 — ₹849', time: '34m ago', color: 'text-emerald-500' },
-  { type: 'ai', text: 'AI optimization applied to 3 listings', sub: 'Avg. SEO score improved: 68 → 84', time: '1h ago', color: 'text-primary' },
-  { type: 'order', text: 'Order #ORD-4889 delivered (Meesho)', sub: 'Bamboo Storage Box — Rating pending', time: '2h ago', color: 'text-blue-500' },
-]
-
-const aiInsights = [
-  { icon: AlertCircle, color: 'text-amber-500 bg-amber-50', title: 'Stock Risk', desc: '3 bestsellers will run out in <7 days. Reorder now to avoid lost sales of ~₹48,000.' },
-  { icon: TrendingUp, color: 'text-emerald-500 bg-emerald-50', title: 'Price Opportunity', desc: 'Competitors raised prices on bamboo organizers. You can increase by ₹80–120 without hurting conversion.' },
-  { icon: Sparkles, color: 'text-primary bg-primary-50', title: 'Keyword Trend', desc: '"eco-friendly kitchen" searches up 340% this week. Update 4 listings to capture this demand.' },
-  { icon: CheckCircle, color: 'text-blue-500 bg-blue-50', title: 'Performance', desc: 'Your Flipkart rating improved to 4.8★. Amazon Buy Box win rate is at 94% — excellent.' },
-]
+const PLATFORM_DOT_COLOR: Record<string, string> = {
+  amazon: '#FF9900',
+  flipkart: '#2874F0',
+  meesho: '#9B2F8A',
+}
 
 function KPICard({
-  label, value, change, positive, icon: Icon, color
+  label, value, icon: Icon, color, hint, delay = 0,
 }: {
-  label: string; value: string; change: string; positive: boolean; icon: any; color: string
+  label: string; value: string; icon: any; color: string; hint?: string; delay?: number
 }) {
   return (
-    <div className="card-hover bg-white rounded-xl border border-gray-100 p-5">
-      <div className="flex items-start justify-between mb-3">
-        <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${color}`}>
-          <Icon size={18} />
-        </div>
-        <span className={`flex items-center gap-1 text-[12px] font-medium ${positive ? 'text-emerald-600' : 'text-red-500'}`}>
-          {positive ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
-          {change}
-        </span>
+    <div className="card p-5 fade-in" style={{ animationDelay: `${delay}ms`, animationFillMode: 'backwards' }}>
+      <div className={`w-9 h-9 rounded-lg flex items-center justify-center mb-3 ${color}`}>
+        <Icon size={18} />
       </div>
-      <div className="text-2xl font-bold text-gray-900 mb-0.5">{value}</div>
-      <div className="text-[12.5px] text-gray-500">{label}</div>
+      <div className="text-2xl font-bold text-app mb-0.5">{value}</div>
+      <div className="text-[12.5px] text-dim">{label}</div>
+      {hint && <div className="text-[11px] text-faint mt-1">{hint}</div>}
     </div>
   )
 }
 
+// Skeleton placeholders sized to match the real widgets they stand in for,
+// so the layout doesn't jump once data arrives — each dashboard section
+// gets its own loading state instead of one big spinner blocking everything.
+function KPISkeleton() {
+  return (
+    <div className="card p-5">
+      <div className="w-9 h-9 rounded-lg bg-surface animate-pulse mb-3" />
+      <div className="h-6 w-16 bg-surface rounded animate-pulse mb-2" />
+      <div className="h-3 w-24 bg-surface rounded animate-pulse" />
+    </div>
+  )
+}
+
+function SectionSkeleton({ title, lines = 4 }: { title?: string; lines?: number }) {
+  return (
+    <div className="card p-5">
+      {title
+        ? <h3 className="text-[14px] font-semibold text-app mb-4">{title}</h3>
+        : <div className="h-4 w-32 bg-surface rounded animate-pulse mb-4" />}
+      <div className="space-y-3">
+        {Array.from({ length: lines }).map((_, i) => (
+          <div key={i} className="h-3 bg-surface rounded animate-pulse" style={{ width: `${74 - i * 9}%` }} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// Lightweight progress nudge, not a gate — every step here is either already
+// done or reachable from elsewhere in the app. It's informational, so it never
+// blocks navigation the way onboarding's "Continue" button briefly did.
+function GettingStarted({ userType, hasMarketplace }: { userType: 'new' | 'existing' | null; hasMarketplace: boolean }) {
+  const steps = [
+    { label: 'Create account', done: true },
+    { label: 'Choose seller type', done: userType !== null },
+    { label: 'Connect a marketplace', done: hasMarketplace },
+    { label: 'Import listings', done: false },
+  ]
+  return (
+    <div className="card p-5">
+      <div className="text-[13px] font-semibold text-app mb-3">Getting started</div>
+      <div className="flex flex-col gap-2.5">
+        {steps.map(s => (
+          <div key={s.label} className={`flex items-center gap-2.5 text-[13px] ${s.done ? 'text-app' : 'text-faint'}`}>
+            {s.done
+              ? <Check size={15} className="text-accent-green flex-shrink-0" />
+              : <Circle size={15} className="text-faint flex-shrink-0" strokeWidth={1.5} />}
+            {s.label}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// Shown to brand-new sellers instead of forcing the onboarding flow —
+// they can start exploring SellerOS before connecting anything.
+//
+// userType only changes *emphasis* here (copy + tile order), not *what data renders* —
+// that's still gated on connectedPlatforms in Dashboard() below, because "do I have
+// real inventory/order data to show" is a capability question, not an identity one.
+// An "existing" seller who skipped connecting still sees the same empty KPI row an
+// "existing" seller who chose "new" would; only the messaging around it differs.
+function WelcomeState({ firstName, userType }: { firstName: string; userType: 'new' | 'existing' | null }) {
+  const connectAction = {
+    to: '/onboarding', icon: PlugZap, color: 'bg-accent-blue-soft text-accent-blue',
+    title: 'Connect your first marketplace',
+    desc: 'Link Amazon, Flipkart, or Meesho to start seeing real inventory, orders, and analytics here.',
+  }
+  const exploreActions = [
+    {
+      to: '/product-studio', icon: Wand2, color: 'bg-accent-purple-soft text-accent-purple',
+      title: 'Explore Product Studio',
+      desc: 'See how SellerOS helps you write and optimize listings before you connect a store.',
+    },
+    {
+      to: '/seller-coach', icon: MessageCircle, color: 'bg-accent-green-soft text-accent-green',
+      title: 'Chat with Seller Coach',
+      desc: 'Ask questions about growing your marketplace business — no setup required.',
+    },
+  ]
+  // Existing sellers who haven't connected yet (e.g. skipped) get the connect action
+  // first — they told us they already sell somewhere, so that's the fastest path to
+  // real data. New/unset sellers see the exploration options first instead.
+  const actions = userType === 'existing' ? [connectAction, ...exploreActions] : [...exploreActions, connectAction]
+  const heading = userType === 'existing'
+    ? `👋 Welcome back, ${firstName} — let's connect your store`
+    : `👋 Welcome to SellerOS, ${firstName}!`
+  const subheading = userType === 'existing'
+    ? "You mentioned you're already selling online — connect a marketplace to see your real numbers here."
+    : "Here are a few ways to get started — pick whichever's useful first."
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="card p-6 lg:col-span-2">
+          <h2 className="text-xl font-bold text-app">{heading}</h2>
+          <p className="text-[13.5px] text-dim mt-1.5">{subheading}</p>
+        </div>
+        <GettingStarted userType={userType} hasMarketplace={false} />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {actions.map(a => (
+          <Link key={a.to} to={a.to} className="card p-5 flex flex-col gap-3 border-app-hover transition-colors">
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${a.color}`}>
+              <a.icon size={18} />
+            </div>
+            <div>
+              <div className="text-[13.5px] font-semibold text-app mb-1">{a.title}</div>
+              <div className="text-[12px] text-dim leading-relaxed">{a.desc}</div>
+            </div>
+            <span className="text-[12px] text-accent-blue font-medium flex items-center gap-1 mt-auto">
+              Go <ArrowRight size={12} />
+            </span>
+          </Link>
+        ))}
+      </div>
+      <div>
+        <div className="text-[13px] font-semibold text-app mb-3">Your dashboard</div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <KPICard label="Connected Marketplaces" value="0" icon={PlugZap} color="bg-surface text-faint" hint="None yet" />
+          <KPICard label="Inventory Items" value="0" icon={Package} color="bg-surface text-faint" hint="Connect to sync" />
+          <KPICard label="Pending Orders" value="0" icon={ShoppingBag} color="bg-surface text-faint" hint="Connect to sync" />
+          <KPICard label="AI Assistant" value="Ready" icon={Sparkles} color="bg-accent-blue-soft text-accent-blue" hint="Try the chat bubble" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function statusVisual(status: string) {
+  const s = status.toLowerCase()
+  if (CANCELLED_STATUSES.has(s)) return { Icon: XCircle, color: 'text-accent-red' }
+  if (s === 'shipped' || s === 'delivered') return { Icon: Truck, color: 'text-accent-purple' }
+  if (PENDING_STATUSES.has(s)) return { Icon: Clock, color: 'text-accent-amber' }
+  return { Icon: CheckCircle2, color: 'text-accent-green' }
+}
+
 export default function Dashboard() {
-  const [revenueRange, setRevenueRange] = useState('7d')
+  const { user, userType } = useAuth()
+  const { selected, connectedPlatforms, loading: platformLoading } = usePlatform()
+  const firstName = user?.business_name?.split(' ')[0] || user?.business_name || 'there'
+
+  const [summary, setSummary] = useState<DashboardSummary | null>(null)
+  const [inventory, setInventory] = useState<InventoryItem[]>([])
+  const [orders, setOrders] = useState<OrderRecord[]>([])
+  const [pageLoading, setPageLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  // Tracks orders/inventory fetch failures separately from the summary error
+  // above — mirrors Business Intelligence's pattern so a failed /orders or
+  // /inventory call surfaces honestly instead of silently rendering every
+  // derived section (trends, top products, stock alerts) as "no data yet".
+  const [derivedDataError, setDerivedDataError] = useState(false)
+
+  // Sales/business metrics come from the shared analytics hook — it tries
+  // the live backend first and falls back to the Phase 7.1 mock dataset
+  // whenever live analytics aren't available for this platform, same as
+  // useOrdersData.ts / useInventoryData.ts already do for their data.
+  const { data: analytics, loading: analyticsLoading } = useAnalyticsData(selected)
+  const loading = pageLoading || analyticsLoading
+
+  const hasMarketplace = connectedPlatforms.length > 0
+
+  useEffect(() => {
+    if (platformLoading) return
+    if (!hasMarketplace) { setPageLoading(false); return }
+
+    let cancelled = false
+    setPageLoading(true)
+    setError(null)
+    setDerivedDataError(false)
+
+    Promise.allSettled([
+      getDashboardSummary(),
+      getInventory(selected),
+      getOrders(selected),
+    ]).then(([summaryRes, inventoryRes, ordersRes]) => {
+      if (cancelled) return
+      if (summaryRes.status === 'fulfilled') setSummary(summaryRes.value)
+      if (inventoryRes.status === 'fulfilled' && inventoryRes.value.success) setInventory(inventoryRes.value.items)
+      if (ordersRes.status === 'fulfilled' && ordersRes.value.success) setOrders(ordersRes.value.orders)
+
+      if (summaryRes.status === 'rejected') {
+        const err = summaryRes.reason
+        setError(err instanceof ApiError ? err.message : 'Could not load dashboard data.')
+      }
+
+      const ordersFailed = ordersRes.status === 'rejected' || (ordersRes.status === 'fulfilled' && !ordersRes.value.success)
+      const inventoryFailed = inventoryRes.status === 'rejected' || (inventoryRes.status === 'fulfilled' && !inventoryRes.value.success)
+      if (ordersFailed || inventoryFailed) setDerivedDataError(true)
+    }).finally(() => !cancelled && setPageLoading(false))
+
+    return () => { cancelled = true }
+  }, [selected, hasMarketplace, platformLoading])
+
+  const lowStockItems = useMemo(
+    () => inventory
+      .filter(i => i.available_quantity > 0 && i.available_quantity < LOW_STOCK_THRESHOLD)
+      .sort((a, b) => a.available_quantity - b.available_quantity),
+    [inventory]
+  )
+  const outOfStockCount = useMemo(() => inventory.filter(i => i.available_quantity === 0).length, [inventory])
+  const healthyStockCount = useMemo(
+    () => inventory.filter(i => i.available_quantity >= LOW_STOCK_THRESHOLD).length,
+    [inventory]
+  )
+  const recentOrders = useMemo(() => orders.slice(0, 6), [orders])
+
+  // --- Everything below is arithmetic over the same /orders and /inventory
+  // data already fetched above — no new endpoints, just honest client-side
+  // aggregation, and it only ever runs on data that actually loaded.
+
+  const totalOrdersComputed = orders.length
+  const totalRevenueComputed = useMemo(
+    () => orders.reduce((sum, o) => sum + (o.total_amount ?? 0), 0),
+    [orders]
+  )
+  const cancelledOrdersCount = useMemo(
+    () => orders.filter(o => CANCELLED_STATUSES.has(o.status.toLowerCase())).length,
+    [orders]
+  )
+  const pendingOrdersComputed = useMemo(
+    () => orders.filter(o => PENDING_STATUSES.has(o.status.toLowerCase())).length,
+    [orders]
+  )
+  const cancellationRate = orders.length > 0 ? (cancelledOrdersCount / orders.length) * 100 : null
+  const avgOrderValue = analytics.salesMetrics?.averageOrderValue
+    ?? (totalOrdersComputed > 0 ? totalRevenueComputed / totalOrdersComputed : null)
+
+  const marketplaceOverview = useMemo(() => {
+    const byPlatform: Record<string, { count: number; revenue: number }> = {}
+    for (const o of orders) {
+      const p = byPlatform[o.platform] ?? { count: 0, revenue: 0 }
+      p.count += 1
+      p.revenue += o.total_amount ?? 0
+      byPlatform[o.platform] = p
+    }
+    const totalRevenue = Object.values(byPlatform).reduce((s, p) => s + p.revenue, 0)
+    return connectedPlatforms.map(platform => {
+      const stats = byPlatform[platform] ?? { count: 0, revenue: 0 }
+      return {
+        platform,
+        ...stats,
+        share: totalRevenue > 0 ? (stats.revenue / totalRevenue) * 100 : 0,
+      }
+    }).sort((a, b) => b.revenue - a.revenue)
+  }, [orders, connectedPlatforms])
+
+  const topProducts = useMemo(() => {
+    const bySku: Record<string, number> = {}
+    for (const o of orders) {
+      for (const item of o.items) {
+        bySku[item.sku] = (bySku[item.sku] ?? 0) + item.quantity
+      }
+    }
+    return Object.entries(bySku).sort((a, b) => b[1] - a[1]).slice(0, 5)
+  }, [orders])
+
+  const insights = useMemo(() => {
+    const items: { icon: any; text: string; tone: string }[] = []
+    if (avgOrderValue != null && totalOrdersComputed > 0) {
+      items.push({
+        icon: TrendingUp, tone: 'text-accent-blue',
+        text: `Average order value is ₹${avgOrderValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}.`,
+      })
+    }
+    if (cancellationRate != null) {
+      items.push({
+        icon: cancellationRate > 10 ? AlertCircle : CheckCircle2,
+        tone: cancellationRate > 10 ? 'text-accent-red' : 'text-accent-green',
+        text: `Cancellation / return rate is ${cancellationRate.toFixed(1)}%${cancellationRate > 10 ? ' — worth a look.' : '.'}`,
+      })
+    }
+    const leader = marketplaceOverview.find(p => p.revenue > 0)
+    if (leader && marketplaceOverview.length > 1) {
+      items.push({
+        icon: Store, tone: 'text-accent-purple',
+        text: `${PLATFORM_LABELS[leader.platform as keyof typeof PLATFORM_LABELS] ?? leader.platform} leads with ₹${leader.revenue.toLocaleString('en-IN')} in synced revenue.`,
+      })
+    }
+    if (lowStockItems.length > 0) {
+      items.push({
+        icon: Package, tone: 'text-accent-amber',
+        text: `${lowStockItems.length} SKU${lowStockItems.length === 1 ? '' : 's'} running low on stock.`,
+      })
+    }
+    if (outOfStockCount > 0) {
+      items.push({
+        icon: XCircle, tone: 'text-accent-red',
+        text: `${outOfStockCount} SKU${outOfStockCount === 1 ? '' : 's'} completely out of stock.`,
+      })
+    }
+    return items.slice(0, 4)
+  }, [avgOrderValue, totalOrdersComputed, cancellationRate, marketplaceOverview, lowStockItems, outOfStockCount])
+
+  if (platformLoading) {
+    return (
+      <div className="p-6 flex items-center justify-center h-64">
+        <Loader2 size={18} className="animate-spin text-dim" />
+      </div>
+    )
+  }
+
+  if (!hasMarketplace) {
+    return <div className="p-6 fade-in"><WelcomeState firstName={firstName} userType={userType} /></div>
+  }
 
   return (
     <div className="p-6 space-y-6 fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">Good morning, Rahul 👋</h2>
-          <p className="text-[13px] text-gray-500 mt-0.5">Here's what's happening with your stores today.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {['7d', '30d', '90d'].map(r => (
-            <button key={r} onClick={() => setRevenueRange(r)}
-              className={`px-3 py-1.5 rounded-lg text-[12.5px] font-medium transition-colors ${
-                revenueRange === r ? 'bg-primary text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
-              }`}>{r}</button>
-          ))}
+          <h2 className="text-xl font-bold text-app">Good to see you, {firstName} 👋</h2>
+          <p className="text-[13px] text-dim mt-0.5">
+            {selected === 'all'
+              ? "Here's what's happening across all your connected stores."
+              : `Showing ${PLATFORM_LABELS[selected]} only.`}
+          </p>
         </div>
       </div>
 
-      {/* KPI cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        <KPICard label="Total Revenue" value="₹83.4L" change="+22.4%" positive icon={TrendingUp} color="bg-primary-50 text-primary" />
-        <KPICard label="Total Orders" value="2,381" change="+18.7%" positive icon={ShoppingBag} color="bg-emerald-50 text-emerald-600" />
-        <KPICard label="GMV" value="₹1.2Cr" change="+31.2%" positive icon={TrendingUp} color="bg-blue-50 text-blue-600" />
-        <KPICard label="Active Listings" value="148" change="+6 new" positive icon={Package} color="bg-purple-50 text-purple-600" />
-        <KPICard label="Avg. Rating" value="4.7★" change="+0.2" positive icon={Star} color="bg-amber-50 text-amber-600" />
-        <KPICard label="Return Rate" value="2.1%" change="-0.4%" positive icon={RotateCcw} color="bg-red-50 text-red-500" />
+      {error && (
+        <div className="card p-4 flex items-center gap-2 text-[13px] text-accent-red">
+          <AlertCircle size={14} /> {error}
+        </div>
+      )}
+      {!loading && derivedDataError && (
+        <div className="card p-4 flex items-center gap-2 text-[13px] text-accent-red">
+          <AlertCircle size={14} /> Some order or inventory data couldn't be loaded, so a few sections below may be incomplete.
+        </div>
+      )}
+
+      {/* KPI row: Total Revenue, Total Orders, Pending Orders, Cancelled Orders —
+          every value here prefers the live /analytics or /dashboard/summary figure
+          and only falls back to a client-side computation over /orders when the
+          backend has none for this platform, always labelled honestly via the hint. */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {loading ? (
+          <>
+            <KPISkeleton /><KPISkeleton /><KPISkeleton /><KPISkeleton />
+          </>
+        ) : (
+          <>
+            <KPICard
+              delay={0}
+              label="Total Revenue"
+              value={
+                analytics.salesMetrics
+                  ? `₹${(analytics.salesMetrics.totalRevenue / 1000).toFixed(1)}k`
+                  : totalOrdersComputed > 0 ? `₹${(totalRevenueComputed / 1000).toFixed(1)}k` : '—'
+              }
+              icon={TrendingUp} color="bg-accent-green-soft text-accent-green"
+              hint={
+                analytics.salesMetrics
+                  ? analytics.salesMetrics.timeframe
+                  : totalOrdersComputed > 0
+                    ? 'Computed from synced orders'
+                    : (analytics.salesMetricsMessage ?? 'No orders synced yet')
+              }
+            />
+            <KPICard
+              delay={60}
+              label="Total Orders"
+              value={
+                analytics.salesMetrics
+                  ? String(analytics.salesMetrics.totalOrders)
+                  : totalOrdersComputed > 0 ? String(totalOrdersComputed) : '—'
+              }
+              icon={ShoppingBag} color="bg-accent-blue-soft text-accent-blue"
+              hint={totalOrdersComputed > 0 ? `Across ${connectedPlatforms.length} connected marketplace${connectedPlatforms.length === 1 ? '' : 's'}` : 'No orders synced yet'}
+            />
+            <KPICard
+              delay={120}
+              label="Pending Orders"
+              value={
+                summary?.pending_orders != null ? String(summary.pending_orders)
+                  : analytics.businessMetrics ? String(analytics.businessMetrics.pendingOrders)
+                    : totalOrdersComputed > 0 ? String(pendingOrdersComputed) : '—'
+              }
+              icon={Clock} color="bg-accent-amber-soft text-accent-amber"
+            />
+            <KPICard
+              delay={180}
+              label="Cancelled Orders"
+              value={totalOrdersComputed > 0 ? String(cancelledOrdersCount) : '—'}
+              icon={RotateCcw} color="bg-accent-red-soft text-accent-red"
+              hint={cancellationRate != null ? `${cancellationRate.toFixed(1)}% of synced orders` : 'No orders synced yet'}
+            />
+          </>
+        )}
       </div>
 
-      {/* Charts row */}
+      {/* Inventory Summary / Marketplace Overview / Quick Business Insights */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
-        {/* Revenue chart */}
-        <div className="xl:col-span-2 bg-white rounded-xl border border-gray-100 p-5">
-          <div className="flex items-center justify-between mb-5">
-            <div>
-              <h3 className="text-[14px] font-semibold text-gray-900">Revenue by Marketplace</h3>
-              <p className="text-[12px] text-gray-400 mt-0.5">Last 22 days · All platforms</p>
-            </div>
-            <div className="flex items-center gap-4 text-[11.5px]">
-              {[['#5B5BD6','Amazon'],['#8B5CF6','Flipkart'],['#06B6D4','Meesho']].map(([c,l]) => (
-                <span key={l} className="flex items-center gap-1.5 text-gray-500">
-                  <span className="w-2 h-2 rounded-full" style={{background: c as string}} />
-                  {l}
-                </span>
-              ))}
-            </div>
-          </div>
-          <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={revenueData} margin={{ top: 5, right: 5, bottom: 0, left: 0 }}>
-              <defs>
-                <linearGradient id="amazon" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#5B5BD6" stopOpacity={0.15} />
-                  <stop offset="95%" stopColor="#5B5BD6" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="flipkart" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.15} />
-                  <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="meesho" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#06B6D4" stopOpacity={0.15} />
-                  <stop offset="95%" stopColor="#06B6D4" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
-              <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: '#9CA3AF' }} axisLine={false} tickLine={false} tickFormatter={v => `₹${(v/1000).toFixed(0)}k`} />
-              <Tooltip
-                contentStyle={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, fontSize: 12 }}
-                formatter={(v: any) => [`₹${(v/1000).toFixed(1)}k`, undefined]}
-              />
-              <Area type="monotone" dataKey="amazon" stroke="#5B5BD6" strokeWidth={2} fill="url(#amazon)" />
-              <Area type="monotone" dataKey="flipkart" stroke="#8B5CF6" strokeWidth={2} fill="url(#flipkart)" />
-              <Area type="monotone" dataKey="meesho" stroke="#06B6D4" strokeWidth={2} fill="url(#meesho)" />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Category pie */}
-        <div className="bg-white rounded-xl border border-gray-100 p-5">
-          <h3 className="text-[14px] font-semibold text-gray-900 mb-1">Revenue by Category</h3>
-          <p className="text-[12px] text-gray-400 mb-4">This month</p>
-          <ResponsiveContainer width="100%" height={160}>
-            <PieChart>
-              <Pie data={categoryData} cx="50%" cy="50%" innerRadius={50} outerRadius={75} dataKey="value" paddingAngle={3}>
-                {categoryData.map((entry, i) => (
-                  <Cell key={i} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip contentStyle={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8, fontSize: 12 }} formatter={(v: any) => [`${v}%`, undefined]} />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="mt-3 space-y-2">
-            {categoryData.map(c => (
-              <div key={c.name} className="flex items-center justify-between text-[12px]">
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-sm" style={{ background: c.color }} />
-                  <span className="text-gray-600">{c.name}</span>
-                </div>
-                <span className="font-semibold text-gray-800">{c.value}%</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Bottom row */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
-        {/* Orders trend */}
-        <div className="bg-white rounded-xl border border-gray-100 p-5">
-          <h3 className="text-[14px] font-semibold text-gray-900 mb-1">Monthly Orders</h3>
-          <p className="text-[12px] text-gray-400 mb-4">6-month trend</p>
-          <ResponsiveContainer width="100%" height={150}>
-            <BarChart data={ordersData} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" vertical={false} />
-              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8, fontSize: 12 }} />
-              <Bar dataKey="orders" fill="#5B5BD6" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Activity feed */}
-        <div className="bg-white rounded-xl border border-gray-100 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-[14px] font-semibold text-gray-900">Recent Activity</h3>
-            <button className="text-[12px] text-primary hover:underline flex items-center gap-1">View all <ArrowRight size={12} /></button>
-          </div>
-          <div className="space-y-3.5">
-            {recentActivity.map((a, i) => (
-              <div key={i} className="flex items-start gap-3">
-                <div className={`w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0 ${a.color.replace('text-', 'bg-')}`} />
-                <div className="flex-1 min-w-0">
-                  <div className="text-[12.5px] font-medium text-gray-800 truncate">{a.text}</div>
-                  <div className="text-[11.5px] text-gray-400 mt-0.5">{a.sub}</div>
-                </div>
-                <span className="text-[11px] text-gray-400 whitespace-nowrap">{a.time}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* AI Insights */}
-        <div className="bg-white rounded-xl border border-gray-100 p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <Sparkles size={16} className="text-primary" />
-            <h3 className="text-[14px] font-semibold text-gray-900">AI Insights</h3>
-          </div>
-          <div className="space-y-3">
-            {aiInsights.map((ins, i) => {
-              const Icon = ins.icon
-              const [bg, fg] = ins.color.split(' ')
-              return (
-                <div key={i} className="p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors cursor-pointer">
-                  <div className="flex items-start gap-2.5">
-                    <div className={`w-7 h-7 rounded-lg ${bg} ${fg} flex items-center justify-center flex-shrink-0`}>
-                      <Icon size={14} />
-                    </div>
-                    <div>
-                      <div className="text-[12.5px] font-semibold text-gray-800">{ins.title}</div>
-                      <div className="text-[11.5px] text-gray-500 mt-0.5 leading-relaxed">{ins.desc}</div>
-                    </div>
+        {loading ? (
+          <>
+            <SectionSkeleton title="Inventory Summary" />
+            <SectionSkeleton title="Marketplace Overview" />
+            <SectionSkeleton title="Quick Business Insights" />
+          </>
+        ) : (
+          <>
+            <div className="card p-5">
+              <h3 className="text-[14px] font-semibold text-app mb-4 flex items-center gap-2"><Boxes size={15} /> Inventory Summary</h3>
+              {inventory.length === 0 ? (
+                <p className="text-[12.5px] text-faint">No inventory synced yet{selected !== 'all' ? ` for ${PLATFORM_LABELS[selected]}` : ''}.</p>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 bg-surface rounded-lg">
+                    <div className="text-[11.5px] text-dim mb-1">Total SKUs</div>
+                    <div className="text-lg font-bold text-app">{inventory.length}</div>
+                  </div>
+                  <div className="p-3 bg-surface rounded-lg">
+                    <div className="text-[11.5px] text-dim mb-1">Healthy Stock</div>
+                    <div className="text-lg font-bold text-accent-green">{healthyStockCount}</div>
+                  </div>
+                  <div className="p-3 bg-surface rounded-lg">
+                    <div className="text-[11.5px] text-dim mb-1">Low Stock</div>
+                    <div className="text-lg font-bold text-accent-amber">{lowStockItems.length}</div>
+                  </div>
+                  <div className="p-3 bg-surface rounded-lg">
+                    <div className="text-[11.5px] text-dim mb-1">Out of Stock</div>
+                    <div className="text-lg font-bold text-accent-red">{outOfStockCount}</div>
                   </div>
                 </div>
-              )
-            })}
-          </div>
-        </div>
+              )}
+              <Link to="/inventory" className="text-[12px] text-accent-blue hover:underline flex items-center gap-1 mt-4">
+                View full inventory <ArrowRight size={12} />
+              </Link>
+            </div>
+
+            <div className="card p-5">
+              <h3 className="text-[14px] font-semibold text-app mb-4 flex items-center gap-2"><Store size={15} /> Marketplace Overview</h3>
+              {marketplaceOverview.length === 0 ? (
+                <p className="text-[12.5px] text-faint">No marketplaces connected yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {marketplaceOverview.map(p => (
+                    <div key={p.platform}>
+                      <div className="flex items-center justify-between text-[12.5px] mb-1">
+                        <span className="text-app font-medium flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: PLATFORM_DOT_COLOR[p.platform] ?? 'var(--text-faint)' }} />
+                          {PLATFORM_LABELS[p.platform as keyof typeof PLATFORM_LABELS] ?? p.platform}
+                        </span>
+                        <span className="text-dim whitespace-nowrap">
+                          {p.count > 0 ? `₹${p.revenue.toLocaleString('en-IN')} · ${p.count} order${p.count === 1 ? '' : 's'}` : 'No orders synced'}
+                        </span>
+                      </div>
+                      <div className="h-1.5 bg-surface rounded-full overflow-hidden">
+                        <div className="h-full bg-accent-blue rounded-full" style={{ width: `${p.share}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="card p-5">
+              <h3 className="text-[14px] font-semibold text-app mb-4 flex items-center gap-2"><Lightbulb size={15} /> Quick Business Insights</h3>
+              {insights.length === 0 ? (
+                <p className="text-[12.5px] text-faint">Insights will appear here once order data starts syncing in.</p>
+              ) : (
+                <div className="space-y-3">
+                  {insights.map((ins, i) => (
+                    <div key={i} className="flex items-start gap-2.5 text-[12.5px] text-dim leading-relaxed">
+                      <ins.icon size={14} className={`${ins.tone} flex-shrink-0 mt-0.5`} />
+                      <span>{ins.text}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Sales Trend Chart / Orders Trend Chart — dependency-free SVG charts
+          computed from real order_date + total_amount values, shared with
+          Business Intelligence so both pages agree on the same numbers. */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <TrendChartCard title="Sales Trend" orders={orders} loading={loading} metric="revenue" />
+        <TrendChartCard title="Orders Trend" orders={orders} loading={loading} metric="orders" />
+      </div>
+
+      {/* Recent Activity / Low Stock Products / Top Performing Products */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+        {loading ? (
+          <>
+            <SectionSkeleton title="Recent Activity" />
+            <SectionSkeleton title="Low Stock Products" />
+            <SectionSkeleton title="Top Performing Products" />
+          </>
+        ) : (
+          <>
+            <div className="card p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-[14px] font-semibold text-app flex items-center gap-2"><Activity size={15} /> Recent Activity</h3>
+                <Link to="/orders" className="text-[12px] text-accent-blue hover:underline flex items-center gap-1">View all <ArrowRight size={12} /></Link>
+              </div>
+              <div className="space-y-3">
+                {recentOrders.length === 0 && (
+                  <div className="text-[12.5px] text-faint">No orders yet{selected !== 'all' ? ` on ${PLATFORM_LABELS[selected]}` : ''}.</div>
+                )}
+                {recentOrders.map(o => {
+                  const { Icon, color } = statusVisual(o.status)
+                  return (
+                    <div key={o.order_id} className="flex items-start gap-3">
+                      <Icon size={14} className={`${color} flex-shrink-0 mt-0.5`} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="text-[12.5px] font-medium text-app truncate">{o.order_id}</div>
+                          <span className="text-[12px] text-dim whitespace-nowrap">
+                            {o.total_amount != null ? `₹${o.total_amount.toLocaleString('en-IN')}` : '—'}
+                          </span>
+                        </div>
+                        <div className="text-[11.5px] text-faint mt-0.5 capitalize">
+                          {o.status} · {PLATFORM_LABELS[o.platform as keyof typeof PLATFORM_LABELS] ?? o.platform}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className="card p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-[14px] font-semibold text-app flex items-center gap-2"><Package size={15} /> Low Stock Products</h3>
+                <Link to="/inventory" className="text-[12px] text-accent-blue hover:underline flex items-center gap-1">View all <ArrowRight size={12} /></Link>
+              </div>
+              <div className="space-y-3">
+                {lowStockItems.length === 0 && outOfStockCount === 0 && (
+                  <div className="text-[12.5px] text-faint">All SKUs are healthily stocked.</div>
+                )}
+                {lowStockItems.length === 0 && outOfStockCount > 0 && (
+                  <div className="text-[12.5px] text-faint">No SKUs are low — but some are fully out of stock.</div>
+                )}
+                {lowStockItems.slice(0, 5).map(item => (
+                  <div key={item.sku} className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="w-1.5 h-1.5 rounded-full bg-accent-amber flex-shrink-0" />
+                      <span className="text-[12.5px] font-mono-app text-app truncate">{item.sku}</span>
+                    </div>
+                    <span className="text-[12px] text-accent-amber font-medium whitespace-nowrap">{item.available_quantity} left</span>
+                  </div>
+                ))}
+                {outOfStockCount > 0 && (
+                  <div className="flex items-center gap-2 pt-2 border-t border-app">
+                    <RotateCcw size={12} className="text-accent-red" />
+                    <span className="text-[12px] text-accent-red">{outOfStockCount} SKU{outOfStockCount === 1 ? '' : 's'} out of stock</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="card p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-[14px] font-semibold text-app flex items-center gap-2"><Award size={15} /> Top Performing Products</h3>
+                <Link to="/business-intelligence" className="text-[12px] text-accent-blue hover:underline flex items-center gap-1">Full report <ArrowRight size={12} /></Link>
+              </div>
+              {topProducts.length === 0 ? (
+                <div className="text-[12.5px] text-faint">Top products will appear once your synced orders include line items.</div>
+              ) : (
+                <div className="space-y-2.5">
+                  {topProducts.map(([sku, qty], i) => (
+                    <div key={sku} className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-[11px] text-faint w-3.5 flex-shrink-0">{i + 1}</span>
+                        <span className="text-[12.5px] font-mono-app text-app truncate">{sku}</span>
+                      </div>
+                      <span className="text-[12px] text-dim whitespace-nowrap">{qty} units</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </div>
   )

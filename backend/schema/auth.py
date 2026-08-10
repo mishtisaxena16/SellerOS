@@ -53,3 +53,30 @@ class CurrentUserResponse(BaseModel):
     email: str
 
     business_name: str
+
+
+class UpdateProfileRequest(BaseModel):
+    """
+    Request schema for updating the seller's own profile.
+
+    Only fields the backend actually models (business_name) can be
+    updated here — there's no phone/GSTIN/photo storage yet.
+    """
+
+    business_name: str = Field(
+        min_length=1,
+        max_length=255,
+    )
+
+
+class ChangePasswordRequest(BaseModel):
+    """
+    Request schema for changing the current user's password.
+    """
+
+    current_password: str
+
+    new_password: str = Field(
+        min_length=8,
+        max_length=128,
+    )

@@ -1,188 +1,138 @@
-import { useState } from 'react'
-import { GraduationCap, Star, Trophy, Play, CheckCircle, Lock, Sparkles, ChevronRight } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { GraduationCap, TrendingUp, Search, DollarSign, Truck, Package, ShoppingBag, PlugZap, RefreshCw, AlertTriangle } from 'lucide-react'
+import AgentConsole from '../components/AgentConsole'
+import { useAuth } from '../context/AuthContext'
+import { usePlatform } from '../context/PlatformContext'
+import { getDashboardSummary, type DashboardSummary } from '../api/dashboard'
+import { ApiError } from '../api/client'
 
-const performanceData = {
-  overall: 82,
-  listing: 79,
-  pricing: 88,
-  fulfillment: 91,
-  reviews: 74,
-  returns: 85,
-}
-
-const modules = [
-  { id: 1, title: 'Listing Mastery', desc: 'Write listings that rank and convert on all marketplaces', lessons: 8, completed: 8, duration: '45 min', locked: false, badge: '🥇' },
-  { id: 2, title: 'SEO for Marketplace', desc: 'Keyword research, A9 algorithm, and indexing strategies', lessons: 6, completed: 4, duration: '35 min', locked: false, badge: '🔍' },
-  { id: 3, title: 'Pricing Psychology', desc: 'Dynamic pricing, bundle strategies, and Buy Box tactics', lessons: 5, completed: 2, duration: '30 min', locked: false, badge: '💡' },
-  { id: 4, title: 'Advertising Deep Dive', desc: 'PPC campaigns, auto vs manual, bid optimization', lessons: 7, completed: 0, duration: '55 min', locked: false, badge: '📣' },
-  { id: 5, title: 'Inventory Forecasting', desc: 'Demand planning, seasonality, and stockout prevention', lessons: 6, completed: 0, duration: '40 min', locked: false, badge: '📦' },
-  { id: 6, title: 'Account Health Mastery', desc: 'Maintain top ratings and avoid suspensions', lessons: 5, completed: 0, duration: '25 min', locked: true, badge: '🛡️' },
+// Seller Coach is a genuinely conversational surface backed by
+// backend.ai.agent_layer.seller_coach.coach_agent via POST /chat.
+// There's no backend model for lesson progress, badges, or a fixed
+// "seller score" today, so this page doesn't invent one — it's a
+// focused chat with the real coaching agent instead of a mock LMS.
+//
+// Starter prompts are the one thing that changes with userType — someone who
+// said they're just starting out gets prompts about getting set up, someone
+// already selling gets prompts about optimizing what they've got. Same agent,
+// same backend call, just a different first question suggested.
+const PROMPTS_NEW = [
+  { label: "What should I sell first?", prompt: "I'm new to online selling — what should I think about before choosing what to sell?" },
+  { label: 'Amazon vs Flipkart vs Meesho', prompt: 'How do Amazon, Flipkart and Meesho differ for a brand-new seller?' },
+  { label: 'What does listing require?', prompt: "What do I need ready before I can list a product for the first time?" },
+  { label: 'Common beginner mistakes', prompt: 'What mistakes do new marketplace sellers commonly make early on?' },
 ]
-
-const tips = [
-  { type: 'opportunity', title: 'Your images are below benchmark', desc: 'Listings with 7+ images get 34% more conversions. Add 3 more images to your top 5 products.', priority: 'high' },
-  { type: 'warning', title: 'Review response rate low', desc: 'You\'ve not responded to 12 customer reviews in the last 7 days. Amazon recommends responding within 24 hours.', priority: 'high' },
-  { type: 'tip', title: 'Leverage Flipkart Smart ROI', desc: 'Your Flipkart ads ROAS is 3.6x. Increasing budget by ₹1000 could yield ₹3,600 additional revenue.', priority: 'medium' },
-  { type: 'achievement', title: 'Top 10% seller in Kitchen category!', desc: 'Your fulfillment rate (98.2%) and rating (4.7★) put you in the top 10% of Kitchen sellers on Amazon India.', priority: 'positive' },
-]
-
-const badges = [
-  { name: 'Listing Pro', icon: '🥇', earned: true },
-  { name: 'Fast Fulfillment', icon: '⚡', earned: true },
-  { name: 'Top Rated', icon: '⭐', earned: true },
-  { name: 'SEO Expert', icon: '🔍', earned: false },
-  { name: 'Ad Master', icon: '📣', earned: false },
-  { name: 'Green Seller', icon: '🌿', earned: false },
+const PROMPTS_EXISTING = [
+  { label: 'How do I improve my listings?', prompt: 'How do I improve my listings?' },
+  { label: 'Tips to grow sales', prompt: 'Give me tips to grow my sales this month.' },
+  { label: 'Improve search ranking', prompt: 'How can I improve my search ranking?' },
+  { label: 'Pricing advice', prompt: 'Give me pricing advice for my products.' },
 ]
 
 export default function SellerCoach() {
-  const [activeModule, setActiveModule] = useState<number | null>(null)
+  const { userType } = useAuth()
+  const { connectedPlatforms } = usePlatform()
+  const hasMarketplace = connectedPlatforms.length > 0
+  const quickPrompts = userType === 'new' ? PROMPTS_NEW : PROMPTS_EXISTING
+
+  // Real numbers, from the same /dashboard/summary endpoint Dashboard
+  // uses — shown here so it's visible (not just internal) that the
+  // coach's answers are grounded in this seller's actual business via
+  // ContextBuilder's "business" section, not a generic script.
+  const [summary, setSummary] = useState<DashboardSummary | null>(null)
+  const [summaryLoading, setSummaryLoading] = useState(false)
+  const [summaryError, setSummaryError] = useState<string | null>(null)
+
+  const loadSummary = useCallback(() => {
+    if (!hasMarketplace) { setSummary(null); setSummaryError(null); return () => {} }
+    let cancelled = false
+    setSummaryLoading(true)
+    setSummaryError(null)
+    getDashboardSummary()
+      .then(s => { if (!cancelled) setSummary(s) })
+      .catch(err => {
+        if (cancelled) return
+        // Previously swallowed silently, leaving the coach's numbers
+        // permanently blank with no way to tell if they'd ever load.
+        setSummaryError(err instanceof ApiError ? err.message : 'Could not load your business numbers.')
+      })
+      .finally(() => { if (!cancelled) setSummaryLoading(false) })
+    return () => { cancelled = true }
+  }, [hasMarketplace])
+
+  useEffect(() => {
+    const cancel = loadSummary()
+    return cancel
+  }, [loadSummary])
 
   return (
     <div className="p-6 fade-in space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-          <GraduationCap size={22} className="text-primary" />
+        <h2 className="text-xl font-bold text-app flex items-center gap-2">
+          <GraduationCap size={22} className="text-accent-blue" />
           Seller Coach
         </h2>
-        <p className="text-[13px] text-gray-500 mt-0.5">AI-powered coaching to grow your seller performance</p>
+        <p className="text-[13px] text-dim mt-0.5">Ask for advice on growing your marketplace business — powered by your live AI coach.</p>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
-        {/* Performance score */}
-        <div className="bg-white rounded-xl border border-gray-100 p-5">
-          <h3 className="text-[13.5px] font-semibold text-gray-900 mb-4">Seller Score</h3>
-          <div className="flex items-center justify-center mb-4">
-            <div className="relative w-32 h-32">
-              <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-                <circle cx="50" cy="50" r="42" fill="none" stroke="#F3F4F6" strokeWidth="10" />
-                <circle cx="50" cy="50" r="42" fill="none" stroke="#5B5BD6" strokeWidth="10" strokeLinecap="round"
-                  strokeDasharray={`${2 * Math.PI * 42}`}
-                  strokeDashoffset={`${2 * Math.PI * 42 * (1 - performanceData.overall / 100)}`}
-                  className="score-ring" />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-3xl font-bold text-gray-900">{performanceData.overall}</span>
-                <span className="text-[10px] text-primary font-semibold">GREAT</span>
+      {hasMarketplace ? (
+        summaryLoading ? (
+          <div className="flex items-center gap-3 text-[12px] text-faint animate-pulse">
+            <span className="h-5 w-32 rounded-md bg-hover inline-block" />
+            <span className="h-5 w-32 rounded-md bg-hover inline-block" />
+          </div>
+        ) : summaryError ? (
+          <div className="flex flex-wrap items-center gap-2 text-[12px] text-accent-red">
+            <AlertTriangle size={13} className="flex-shrink-0" />
+            <span>{summaryError}</span>
+            <button onClick={loadSummary} className="inline-flex items-center gap-1 text-accent-blue hover:underline">
+              <RefreshCw size={11} /> Retry
+            </button>
+          </div>
+        ) : summary && summary.inventory_items != null ? (
+          <div className="flex flex-wrap items-center gap-3 text-[12px]">
+            <span className="badge bg-accent-blue-soft text-accent-blue border-0"><Package size={11} /> {summary.inventory_items} inventory items</span>
+            <span className="badge bg-accent-amber-soft text-accent-amber border-0"><ShoppingBag size={11} /> {summary.pending_orders ?? 0} pending orders</span>
+            <span className="text-faint">Your coach sees these numbers too — try asking about them directly.</span>
+          </div>
+        ) : null
+      ) : (
+        <div className="flex items-center gap-2 text-[12px] text-faint">
+          <PlugZap size={13} /> Connect a marketplace so your coach can answer using your real numbers, not just general advice.
+        </div>
+      )}
+
+      <AgentConsole
+        title="Seller Coach"
+        description="Advice on listings, pricing, fulfillment, reviews, and growth"
+        icon={GraduationCap}
+        iconColor="bg-accent-blue-soft text-accent-blue"
+        sessionKey="seller-coach"
+        placeholder="Ask your seller coach anything…"
+        emptyHint="Try asking about your account health, how to improve conversion, or what to focus on this month."
+        quickPrompts={quickPrompts}
+      />
+
+      <div>
+        <div className="text-[13px] font-semibold text-app mb-3">Common topics</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            { label: 'Listings', icon: Search, color: 'bg-accent-blue-soft text-accent-blue', hint: 'Titles, images, keywords', tip: 'Improve listing quality' },
+            { label: 'Pricing', icon: DollarSign, color: 'bg-accent-green-soft text-accent-green', hint: 'Margins, discounts, Buy Box', tip: 'Improve pricing' },
+            { label: 'Fulfillment', icon: Truck, color: 'bg-accent-purple-soft text-accent-purple', hint: 'Shipping, SLAs, returns', tip: 'Reduce stock-outs' },
+            { label: 'Growth', icon: TrendingUp, color: 'bg-accent-amber-soft text-accent-amber', hint: 'Trends, demand, scaling', tip: 'Increase conversion' },
+          ].map(t => (
+            <div key={t.label} className="card p-4 flex items-center gap-3">
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${t.color}`}>
+                <t.icon size={16} />
+              </div>
+              <div>
+                <div className="text-[13px] font-semibold text-app">{t.label}</div>
+                <div className="text-[11.5px] text-faint">{t.hint}</div>
+                <div className="text-[10.5px] text-accent-green mt-0.5">Tip: {t.tip}</div>
               </div>
             </div>
-          </div>
-          <div className="space-y-2.5">
-            {Object.entries(performanceData).filter(([k]) => k !== 'overall').map(([key, val]) => (
-              <div key={key}>
-                <div className="flex justify-between text-[12px] mb-1">
-                  <span className="text-gray-600 capitalize">{key}</span>
-                  <span className={`font-semibold ${val >= 85 ? 'text-emerald-600' : val >= 70 ? 'text-amber-600' : 'text-red-500'}`}>{val}</span>
-                </div>
-                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full ${val >= 85 ? 'bg-emerald-400' : val >= 70 ? 'bg-amber-400' : 'bg-red-400'}`} style={{ width: `${val}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Learning modules */}
-        <div className="xl:col-span-2 bg-white rounded-xl border border-gray-100 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-[13.5px] font-semibold text-gray-900">Learning Path</h3>
-            <span className="text-[12px] text-gray-500">14 / 37 lessons complete</span>
-          </div>
-          <div className="space-y-2.5">
-            {modules.map(mod => {
-              const pct = mod.lessons > 0 ? Math.round((mod.completed / mod.lessons) * 100) : 0
-              return (
-                <div
-                  key={mod.id}
-                  onClick={() => !mod.locked && setActiveModule(activeModule === mod.id ? null : mod.id)}
-                  className={`p-4 rounded-lg border transition-all ${
-                    mod.locked ? 'border-gray-100 bg-gray-50/50 opacity-60 cursor-not-allowed'
-                    : activeModule === mod.id ? 'border-primary bg-primary-50/50 cursor-pointer'
-                    : 'border-gray-100 hover:border-gray-200 cursor-pointer'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-xl">{mod.badge}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[13px] font-semibold text-gray-900">{mod.title}</span>
-                        {mod.completed === mod.lessons && mod.lessons > 0 && (
-                          <CheckCircle size={13} className="text-emerald-500" />
-                        )}
-                        {mod.locked && <Lock size={12} className="text-gray-400" />}
-                      </div>
-                      <div className="text-[11.5px] text-gray-500 truncate">{mod.desc}</div>
-                    </div>
-                    <div className="text-right flex-shrink-0">
-                      <div className="text-[12px] text-gray-500">{mod.completed}/{mod.lessons} lessons</div>
-                      <div className="text-[11px] text-gray-400">{mod.duration}</div>
-                    </div>
-                    <ChevronRight size={14} className={`text-gray-400 transition-transform ${activeModule === mod.id ? 'rotate-90' : ''}`} />
-                  </div>
-                  <div className="mt-2.5 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full transition-all ${pct === 100 ? 'bg-emerald-400' : 'bg-primary'}`} style={{ width: `${pct}%` }} />
-                  </div>
-                  {activeModule === mod.id && !mod.locked && (
-                    <div className="mt-3 pt-3 border-t border-gray-100">
-                      <button className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-[12.5px] font-medium rounded-lg hover:bg-primary-hover transition-colors">
-                        <Play size={12} fill="white" />
-                        {mod.completed > 0 ? 'Continue Learning' : 'Start Module'}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-        {/* Personalized tips */}
-        <div className="bg-white rounded-xl border border-gray-100 p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <Sparkles size={15} className="text-primary" />
-            <h3 className="text-[13.5px] font-semibold text-gray-900">AI Coaching Tips</h3>
-          </div>
-          <div className="space-y-3">
-            {tips.map(tip => (
-              <div key={tip.title} className={`p-3.5 rounded-lg border ${
-                tip.priority === 'high' ? 'border-red-100 bg-red-50/50' :
-                tip.priority === 'medium' ? 'border-amber-100 bg-amber-50/50' :
-                tip.priority === 'positive' ? 'border-emerald-100 bg-emerald-50/50' :
-                'border-gray-100'
-              }`}>
-                <div className="text-[13px] font-semibold text-gray-900 mb-1">{tip.title}</div>
-                <div className="text-[12px] text-gray-600 leading-relaxed">{tip.desc}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Badges */}
-        <div className="bg-white rounded-xl border border-gray-100 p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <Trophy size={15} className="text-amber-500" />
-            <h3 className="text-[13.5px] font-semibold text-gray-900">Achievements</h3>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            {badges.map(badge => (
-              <div key={badge.name} className={`p-4 rounded-xl border text-center transition-all ${
-                badge.earned ? 'border-amber-100 bg-amber-50/50' : 'border-gray-100 bg-gray-50/50 opacity-50'
-              }`}>
-                <div className={`text-3xl mb-2 ${!badge.earned ? 'grayscale' : ''}`}>{badge.icon}</div>
-                <div className="text-[11.5px] font-semibold text-gray-700">{badge.name}</div>
-                <div className="text-[10px] text-gray-400 mt-0.5">{badge.earned ? 'Earned' : 'Locked'}</div>
-              </div>
-            ))}
-          </div>
-          <div className="mt-4 p-3 bg-primary-50 rounded-lg border border-primary-100">
-            <div className="flex items-center gap-2">
-              <Star size={14} className="text-primary" />
-              <span className="text-[12.5px] font-semibold text-primary">Next: SEO Expert Badge</span>
-            </div>
-            <div className="text-[11.5px] text-gray-600 mt-1">Complete "SEO for Marketplace" module to unlock.</div>
-          </div>
+          ))}
         </div>
       </div>
     </div>

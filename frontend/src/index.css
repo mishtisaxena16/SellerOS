@@ -1,8 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 @import 'tailwindcss';
 
 @theme {
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+  /* kept for any legacy component still referencing the old indigo tokens */
   --color-primary: #5B5BD6;
   --color-primary-hover: #4747C9;
   --color-primary-50: #EEEEFF;
@@ -12,6 +14,63 @@
   --color-ai-50: #ECFEFF;
 }
 
+/* ============================================================
+   SellerOS theme system
+   Tokens are lifted directly from sellerOS_homepage_updated.html
+   so the marketing site, auth flow, and app shell share one look.
+   Toggle by setting data-theme="dark" | "light" on <html>.
+   ============================================================ */
+:root,
+[data-theme='dark'] {
+  --bg: #05070d;
+  --bg-elev: #0b0e18;
+  --bg-surface: #10131f;
+  --bg-hover: rgba(255, 255, 255, 0.05);
+  --border: rgba(255, 255, 255, 0.08);
+  --border-hover: rgba(255, 255, 255, 0.16);
+  --text: #f2f4f8;
+  --text-dim: #8b93a7;
+  --text-faint: #4b5163;
+  --blue: #3b82f6;
+  --blue-soft: rgba(59, 130, 246, 0.12);
+  --green: #34d399;
+  --green-soft: rgba(52, 211, 153, 0.12);
+  --purple: #a855f7;
+  --purple-soft: rgba(168, 85, 247, 0.12);
+  --pink: #ec4899;
+  --amber: #f59e0b;
+  --amber-soft: rgba(245, 158, 11, 0.12);
+  --red: #f87171;
+  --red-soft: rgba(248, 113, 113, 0.12);
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.14);
+}
+
+[data-theme='light'] {
+  --bg: #f6f7fb;
+  --bg-elev: #ffffff;
+  --bg-surface: #ffffff;
+  --bg-hover: rgba(15, 23, 42, 0.04);
+  --border: rgba(15, 23, 42, 0.09);
+  --border-hover: rgba(15, 23, 42, 0.18);
+  --text: #0f1420;
+  --text-dim: #5b6472;
+  --text-faint: #9aa2b1;
+  --blue: #2563eb;
+  --blue-soft: rgba(37, 99, 235, 0.09);
+  --green: #059669;
+  --green-soft: rgba(5, 150, 105, 0.09);
+  --purple: #9333ea;
+  --purple-soft: rgba(147, 51, 234, 0.09);
+  --pink: #db2777;
+  --amber: #d97706;
+  --amber-soft: rgba(217, 119, 6, 0.1);
+  --red: #dc2626;
+  --red-soft: rgba(220, 38, 38, 0.09);
+  --shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+  --scrollbar-thumb: #d1d5db;
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
 }
@@ -19,11 +78,102 @@
 html, body {
   margin: 0;
   padding: 0;
-  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
-  background-color: #F5F6F9;
-  color: #111827;
+  font-family: var(--font-sans);
+  background-color: var(--bg);
+  color: var(--text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color .2s ease, color .2s ease;
+}
+
+/* Semantic theme utility classes — layout stays in Tailwind,
+   color/surface comes from the CSS variables above so the whole
+   app can flip between dark/light with one attribute change. */
+.bg-app { background-color: var(--bg); }
+.bg-elev { background-color: var(--bg-elev); }
+.bg-surface { background-color: var(--bg-surface); }
+.bg-hover:hover { background-color: var(--bg-hover); }
+.text-app { color: var(--text); }
+.text-dim { color: var(--text-dim); }
+.text-faint { color: var(--text-faint); }
+.border-app { border-color: var(--border); }
+.border-app-hover:hover { border-color: var(--border-hover); }
+.font-mono-app { font-family: var(--font-mono); }
+.shadow-app { box-shadow: var(--shadow); }
+
+.text-accent-blue { color: var(--blue); }
+.text-accent-green { color: var(--green); }
+.text-accent-purple { color: var(--purple); }
+.text-accent-pink { color: var(--pink); }
+.text-accent-amber { color: var(--amber); }
+.text-accent-red { color: var(--red); }
+.bg-accent-blue { background-color: var(--blue); }
+.bg-accent-blue-soft { background-color: var(--blue-soft); }
+.bg-accent-green-soft { background-color: var(--green-soft); }
+.bg-accent-purple-soft { background-color: var(--purple-soft); }
+.bg-accent-amber-soft { background-color: var(--amber-soft); }
+.bg-accent-red-soft { background-color: var(--red-soft); }
+
+.card {
+  background-color: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  transition: border-color .2s ease, transform .2s ease;
+}
+.card-interactive:hover { border-color: var(--border-hover); }
+
+.btn-primary-app {
+  background: var(--text);
+  color: var(--bg);
+  font-weight: 600;
+  border-radius: 100px;
+  transition: transform .15s ease, box-shadow .15s ease, opacity .15s ease;
+}
+.btn-primary-app:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+.btn-primary-app:disabled { opacity: .55; cursor: not-allowed; transform: none; box-shadow: none; }
+
+.btn-ghost-app {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  transition: border-color .15s ease, background-color .15s ease;
+}
+.btn-ghost-app:hover { border-color: var(--border-hover); background-color: var(--bg-hover); }
+
+.input-app {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 10px;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.input-app::placeholder { color: var(--text-faint); }
+.input-app:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px var(--blue-soft);
+}
+
+.eyebrow-app {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--blue);
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.eyebrow-app::before { content: ''; width: 16px; height: 1px; background: var(--blue); }
+
+.live-dot-app {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-mono); font-size: 11px; color: var(--green); letter-spacing: .05em;
+}
+.live-dot-app::before {
+  content: ''; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--green); box-shadow: 0 0 8px var(--green);
 }
 
 ::-webkit-scrollbar {
@@ -34,15 +184,15 @@ html, body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #D1D5DB;
+  background: var(--scrollbar-thumb);
   border-radius: 10px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #9CA3AF;
+  background: var(--border-hover);
 }
 * {
   scrollbar-width: thin;
-  scrollbar-color: #D1D5DB transparent;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
 .sidebar-transition {

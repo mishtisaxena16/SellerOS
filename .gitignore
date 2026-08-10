@@ -34,3 +34,19 @@ structure.txt
 #frontend
 node_modules/
 dist/
+# Node / Frontend generated files
+frontend/.npm-cache/
+**/.npm-cache/
+
+# Debug artifacts
+debug/
+
+# Archives
+*.zip
+
+# Local backups
+phases and their backup/
+
+# Python cache
+__pycache__/
+*.py[cod]
